@@ -1,5 +1,5 @@
 import type { TraceSource } from '@cl/contract';
-import { TASKS, runTask, shortModel, type TaskInput, type TaskModel, type TaskName, type TaskOutput } from '@cl/agents';
+import { BLOCK_TASKS, TASKS, runTask, shortModel, type TaskInput, type TaskModel, type TaskName, type TaskOutput } from '@cl/agents';
 import { sha256 } from '@cl/db';
 import type { CData, Rec } from '@cl/registry';
 import { BLOCK_META } from './meta';
@@ -37,6 +37,9 @@ export function segIndex(docs: LoadedDoc[]) {
 const docRecord = (d: LoadedDoc) => ({ tên: d.original_name, nguồn: d.source_ref, 'nhóm nguồn': d.origin_group ?? 'chưa xác định', 'số đoạn': d.segments.length, hash: d.content_sha256.slice(0, 12), 'trích đầu': short(d.text, 220) });
 const taskDoc = (d: LoadedDoc) => ({ id: d.ref, segments: d.segments.map((s) => ({ id: s.id, text: s.text })) });
 
+/** Every task the B0–B8 line can call must have a model assigned in the locked snapshot. */
+const LINE_TASKS = [...new Set(Object.values(BLOCK_TASKS).flat())];
+
 export async function runB0(ctx: BlockCtx): Promise<BlockResult> {
   const s = ctx.snapshot;
   const tb = new TraceBuilder('B0', ctx.attemptId, ctx.now);
@@ -46,7 +49,7 @@ export async function runB0(ctx: BlockCtx): Promise<BlockResult> {
     ['Bộ JD', `${s.documents.length} tài liệu · revision ${s.jd_set.revision}`, s.documents.length > 0],
     ['Release nền', s.base_release_id ? `${s.base_version_label} (${s.base_release_id})` : 'Từ điển rỗng (v0.0)', true],
     ['Policy', `${policyRef(s.policy)} · ngưỡng ${s.policy.thresholds_status}`, !!s.policy?.id],
-    ['Cấu hình agent', `${s.agent_config.version} · ${Object.keys(s.agent_config.tasks).length} tác vụ`, Object.keys(s.agent_config.tasks).length === 13],
+    ['Cấu hình agent', `${s.agent_config.version} · ${LINE_TASKS.filter((k) => k in s.agent_config.tasks).length}/${LINE_TASKS.length} tác vụ của dây chuyền`, LINE_TASKS.every((k) => k in s.agent_config.tasks)],
   ];
   tb.record('snapshot', 'Snapshot của lượt', { session: s.session, jd_set: s.jd_set, base_release_id: s.base_release_id, policy: policyRef(s.policy), cli_version: s.cli_version, lessons_loaded: s.lessons_loaded.map((l) => l.id) });
   for (const d of ctx.docs) tb.record(d.ref, d.original_name, docRecord(d));
