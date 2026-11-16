@@ -1,5 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
+  "compilerOptions": { "baseUrl": ".", "paths": { "@cl/*": ["packages/*/src/index.ts"] } },
   "include": ["packages/*/src/**/*.ts", "apps/worker/src/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "vitest.config.ts"],
-  "exclude": ["node_modules", "docs"]
+  "exclude": ["node_modules", "docs", "tests/e2e"]
 }

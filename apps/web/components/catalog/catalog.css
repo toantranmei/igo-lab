@@ -1,0 +1,46 @@
+/* Additions for the catalog explorer on top of the reference stylesheet (.catalog-*, .three-*). */
+.catalog-explorer{min-width:0;max-width:100%}
+.catalog-empty{padding:26px 20px;border:1px dashed var(--line);border-radius:10px;text-align:center;font-size:12px}
+
+/* 2D stage: toolbar, zoom, fullscreen */
+.catalog-2d{min-width:0}
+.catalog-2d-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.catalog-2d-toolbar .all-network-count{margin:0}
+.catalog-2d-toolbar>div{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.catalog-2d-toolbar button{font-size:11px;padding:7px 10px}
+.catalog-2d-toolbar [aria-pressed=true]{background:#3d426b;border-color:#a0aaff}
+.catalog-2d-zoom{font-size:11px;color:var(--muted);min-width:38px;text-align:center}
+.catalog-2d:fullscreen{width:100vw;height:100vh;background:var(--bg);padding:16px;overflow:hidden;display:flex;flex-direction:column}
+.catalog-2d:fullscreen .catalog-graph-scroll{flex:1;min-height:0;max-height:none}
+.catalog-node.all-node.lit{border-color:#b6a6ff}
+.catalog-edge-label{font-size:9px;fill:#e3dcff;stroke:#0f1520;stroke-width:3px;paint-order:stroke;pointer-events:none}
+.catalog-edge.quiet .catalog-edge-label{display:none}
+.catalog-edge .edge-hit:focus-visible{stroke:#9cafff77}
+
+/* 3D */
+.three-toolbar button[hidden]{display:none}
+.three-wrap details{margin-top:12px}
+
+/* Inspector details */
+.catalog-facts{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:10px 0;font-size:12px}
+.catalog-facts dt{color:var(--muted);font-size:10px;letter-spacing:.5px;padding-top:2px}
+.catalog-facts dd{margin:0}
+.catalog-evidence{list-style:none;margin:8px 0;padding:0;display:grid;gap:4px}
+.catalog-evidence code{display:inline;margin:0}
+.catalog-edge-profile{border-top:1px solid var(--line);margin-top:16px;padding-top:4px}
+.catalog-inspector button.chip{border:1px solid transparent;cursor:pointer}
+.catalog-inspector [aria-pressed=true]{border-color:var(--accent)}
+.catalog-inspector .formula{font-size:11px;line-height:1.8}
+
+/* Matrix + compare: tables scroll inside their own box, never the page */
+.catalog-matrix,.catalog-compare{min-width:0;max-width:100%}
+.catalog-explorer .table-wrap.scroll-x{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+.industry-matrix button[aria-pressed=true]{outline:2px solid var(--accent);outline-offset:1px}
+.compare-table{min-width:640px}
+.compare-table .compare-group th{background:#1c2537;color:var(--accent);padding:9px 17px}
+.compare-table td button{font-size:11px;padding:6px 9px;white-space:nowrap}
+
+@media(max-width:740px){
+  .catalog-2d-toolbar button{font-size:10px;padding:7px}
+  .catalog-filters button{font-size:10px}
+}
