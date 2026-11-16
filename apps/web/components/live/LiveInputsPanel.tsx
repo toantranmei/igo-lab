@@ -319,6 +319,11 @@ export default function LiveInputsPanel() {
             <p>
               <b>{scan.result.total_rows.toLocaleString('vi-VN')}</b> tin đúng vị trí "{scan.role}" trong {scan.result.dataset_rows.toLocaleString('vi-VN')} dòng của {scan.result.dataset} · giấy phép: {scan.result.license ? <b className={/nc|unknown|other/i.test(scan.result.license) ? 'cl-warn' : undefined}>{scan.result.license}</b> : <b className="cl-warn">không khai báo</b>}
             </p>
+            {scan.result.total_rows === 0 ? (
+              <p className="cl-warn" role="alert" data-testid="hf-empty">
+                Quét xong, không có tin nào có tiêu đề đúng vị trí này trong dataset. AI chỉ giữ tiêu đề tuyển <b>đúng</b> vị trí đã nhập, không lấy vị trí gần nghĩa. Thử chức danh mà thị trường hay dùng (ví dụ "UI/UX Designer" thay cho "UX Engineer") hoặc chọn dataset khác.
+              </p>
+            ) : null}
             <p className="dim">
               Từ khóa AI sinh: {scan.result.keywords.join(' · ')}. Code tìm thấy {scan.result.candidate_rows.toLocaleString('vi-VN')} tin khớp từ khóa ({scan.result.candidate_titles.toLocaleString('vi-VN')} chức danh khác nhau); AI duyệt {scan.result.judged_titles.toLocaleString('vi-VN')} chức danh.
               {scan.result.truncated ? ` Kết quả bị cắt: chỉ duyệt ${scan.result.judged_titles} chức danh phổ biến nhất và hiện tối đa ${scan.result.hits.length} tin.` : ''}
