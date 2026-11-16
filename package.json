@@ -12,7 +12,7 @@
     "lint": "pnpm typecheck",
     "test": "vitest run",
     "test:unit": "vitest run --project unit",
-    "test:int": "vitest run --project integration",
+    "test:int": "vitest run --project integration --no-file-parallelism",
     "e2e": "playwright test",
     "db:up": "docker compose up -d postgres",
     "db:migrate": "tsx packages/db/src/migrate.ts",

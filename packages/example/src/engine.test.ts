@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Lab, seed, initial } from './engine';
-import { Catalog, buildGraph } from './catalog';
+import { Catalog } from './catalog';
+const buildGraph = (ps: any) => Catalog.graph(ps);
 
 function runAll(lab: Lab) {
   const outs: Record<string, any> = {};
