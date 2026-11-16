@@ -7,11 +7,12 @@
  * Fault injection: FAKE_CLAUDE_MODE = ok | exit1 | bad_schema | bad_once | hang | not_logged_in
  * Every invocation appends one line to FAKE_CLAUDE_LOG when set.
  */
-import { appendFileSync, existsSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
 if (argv.includes('--version')) {
-  if (process.env.FAKE_CLAUDE_VERSION === 'missing') process.exit(127);
+  const ctl = process.env.FAKE_CLAUDE_CONTROL;
+  if (process.env.FAKE_CLAUDE_VERSION === 'missing' || (ctl && existsSync(ctl) && readFileSync(ctl, 'utf8').trim() === 'cli_missing')) process.exit(127);
   console.log(`${process.env.FAKE_CLAUDE_VERSION ?? '2.1.325'} (Claude Code)`);
   process.exit(0);
 }
@@ -28,7 +29,9 @@ for await (const chunk of process.stdin) stdin += chunk;
 const system = arg('--system-prompt') ?? '';
 const model = arg('--model');
 const taskId = (system.match(/\[task:([^\]]+)\]/) ?? [])[1] ?? 'unknown';
-const mode = process.env.FAKE_CLAUDE_MODE ?? 'ok';
+// E2E switches fault modes at run time through a control file, since the worker's env is fixed.
+const control = process.env.FAKE_CLAUDE_CONTROL && existsSync(process.env.FAKE_CLAUDE_CONTROL) ? readFileSync(process.env.FAKE_CLAUDE_CONTROL, 'utf8').trim() : '';
+const mode = control || (process.env.FAKE_CLAUDE_MODE ?? 'ok');
 if (process.env.FAKE_CLAUDE_LOG) appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ taskId, model, effort: arg('--effort'), hasApiKey: !!process.env.ANTHROPIC_API_KEY, cwd: process.cwd(), tools: arg('--tools'), repair: stdin.includes('KHÔNG hợp lệ') }) + '\n');
 
 const out = (structured, extra = {}) => {

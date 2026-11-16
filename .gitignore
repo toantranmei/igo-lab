@@ -8,3 +8,5 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 .DS_Store
+.e2e-data/
+apps/web/AGENTS.md

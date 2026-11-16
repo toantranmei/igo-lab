@@ -47,6 +47,14 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
     };
   }, [source, refresh]);
 
+  // Live: the worker / Claude CLI can come and go; re-check so the lock and its guidance stay current.
+  const live = state?.mode === 'live';
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => void refresh(), 4000);
+    return () => clearInterval(t);
+  }, [live, refresh]);
+
   const toast = useCallback((m: string) => setToast(m), []);
   const value = useMemo(() => ({ sessionId, source, state, error, refresh, toast, toastText }), [sessionId, source, state, error, refresh, toast, toastText]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

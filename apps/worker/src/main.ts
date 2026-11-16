@@ -24,7 +24,7 @@ async function main() {
   const idle = Number(process.env.WORKER_POLL_MS ?? 700);
   while (!stopping) {
     try {
-      if (Date.now() - lastBeat > 20000) {
+      if (Date.now() - lastBeat > Number(process.env.WORKER_HEARTBEAT_MS ?? 20000)) {
         await heartbeat();
         lastBeat = Date.now();
       }

@@ -30,4 +30,4 @@ a.nav{display:block;text-decoration:none}
 .cl-badge{display:inline-block;font-size:10px;padding:1px 7px;border-radius:99px;border:1px solid var(--line);color:var(--muted);margin-left:5px}
 .cl-badge.ai{color:var(--accent);border-color:#9cafff66}
 .cl-badge.code{color:var(--green);border-color:#72d9b155}
-@media(max-width:740px){.session-picker select{max-width:150px}.head-progress{display:none}}
+@media(max-width:740px){.session-picker{margin-right:0;min-width:0}.session-picker label{display:none}.session-picker select{max-width:120px}.head-progress{display:none}main>header{height:auto;min-height:66px}main>header>div{flex-wrap:wrap;padding:8px 0}main>header .avatar{display:none}}

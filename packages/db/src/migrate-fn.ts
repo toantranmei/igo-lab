@@ -1,15 +1,21 @@
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
 
 export const DEFAULT_WORKSPACE_ID = 'ws_default';
 
+/** Finds packages/db/migrations by walking up from the working directory (works from the repo root, apps/* and Docker). */
 function migrationsDir() {
   if (process.env.CL_MIGRATIONS_DIR) return process.env.CL_MIGRATIONS_DIR;
-  const here = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
-  return path.resolve(here, '../migrations');
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    const candidate = path.join(dir, 'packages/db/migrations');
+    if (existsSync(candidate)) return candidate;
+    dir = path.dirname(dir);
+  }
+  throw new Error('Không tìm thấy packages/db/migrations; đặt CL_MIGRATIONS_DIR.');
 }
 
 /**
