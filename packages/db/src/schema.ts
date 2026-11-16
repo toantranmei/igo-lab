@@ -302,3 +302,12 @@ export const exportFile = pgTable('export_file', {
   manifest: jsonb('manifest').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
+
+/** Heartbeat written by the worker so the web process can tell whether Live runs are possible. */
+export const workerStatus = pgTable('worker_status', {
+  id: text('id').primaryKey(),
+  ok: boolean('ok').notNull(),
+  cliVersion: text('cli_version'),
+  message: text('message').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
