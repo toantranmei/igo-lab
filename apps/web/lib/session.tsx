@@ -56,11 +56,12 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
   // Live: the worker / Claude CLI can come and go; re-check so the lock and its guidance stay current.
   const live = state?.mode === 'live';
+  const autoOn = !!state?.auto?.on;
   useEffect(() => {
     if (!live) return;
-    const t = setInterval(() => void refresh(), 4000);
+    const t = setInterval(() => void refresh(), autoOn ? 1500 : 4000);
     return () => clearInterval(t);
-  }, [live, refresh]);
+  }, [live, autoOn, refresh]);
 
   const toast = useCallback((m: string) => setToast(m), []);
   const value = useMemo(() => ({ sessionId, source, state, error, refresh, toast, toastText }), [sessionId, source, state, error, refresh, toast, toastText]);

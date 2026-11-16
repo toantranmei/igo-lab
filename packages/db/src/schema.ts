@@ -327,3 +327,25 @@ export const sourceSearch = pgTable('source_search', {
   createdBy: text('created_by').notNull(),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
+
+/** A public dataset downloaded to the server's data directory (queued by web, downloaded by the worker). */
+export const sourceDataset = pgTable('source_dataset', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  /** QUEUED | DOWNLOADING | READY | FAILED */
+  state: text('state').notNull().default('QUEUED'),
+  progress: text('progress').notNull().default(''),
+  info: jsonb('info'),
+  error: jsonb('error'),
+  lockedAt: ts('locked_at'),
+  createdBy: text('created_by').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+/** Auto-run switch of a run: the worker acknowledges each passed block and queues the next one. Not exported. */
+export const runAuto = pgTable('run_auto', {
+  runId: text('run_id').primaryKey(),
+  on: boolean('on').notNull().default(false),
+  note: text('note').notNull().default(''),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});

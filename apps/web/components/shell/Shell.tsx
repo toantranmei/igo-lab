@@ -110,7 +110,7 @@ export default function Shell({ tab, children }: { tab: string; children: React.
   };
 
   const stepLabel = pending ? `◎ Tiếp tục ${pending.id}` : 'Tiến 1 bước →';
-  const stepDisabled = !state || (!pending && (state.halted || state.completed)) || (state.mode === 'live' && state.aiReady?.ok === false && !pending);
+  const stepDisabled = !state || !!state.auto?.on || (!pending && (state.halted || state.completed)) || (state.mode === 'live' && state.aiReady?.ok === false && !pending);
 
   return (
     <>
@@ -180,6 +180,16 @@ export default function Shell({ tab, children }: { tab: string; children: React.
             <div>
               <b>Phiên Live.</b> Các bước cần phán đoán ngữ nghĩa do AI thực hiện qua Claude CLI; mọi phép đếm, công thức và cổng do code tính. “AI đã chạy thật” không có nghĩa bằng chứng nghề đã được kiểm chứng.
               {state?.aiReady && !state.aiReady.ok ? <div className="cl-warn">⚠ {state.aiReady.message}</div> : null}
+              {state?.auto?.note ? (
+                <div className={state.auto.on ? 'cl-ok' : 'cl-warn'} data-testid="auto-note" role="status">
+                  {state.auto.on ? '▶▶' : '■'} {state.auto.note}{' '}
+                  {!state.auto.on && state.position === 9 && !state.completed ? (
+                    <>
+                      <Link href={`/s/${sessionId}/framework`}>Xem khung dự kiến</Link> · <Link href={`/s/${sessionId}/audit#live-release`}>Xem thay đổi từ điển và duyệt</Link>
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -189,6 +199,17 @@ export default function Shell({ tab, children }: { tab: string; children: React.
             <button className="primary" id="step" disabled={stepDisabled} onClick={() => void guide.startNext()}>
               {stepLabel}
             </button>
+            {!isExample && state?.runLabel && !state.completed ? (
+              state.auto?.on ? (
+                <button id="auto-stop" onClick={() => void api(`/sessions/${sessionId}/auto`, { method: 'POST', json: { on: false } }).then(refresh)}>
+                  ■ Dừng tự động{state.auto.running ? ` (đang chạy ${state.auto.running})` : ''}
+                </button>
+              ) : (
+                <button id="auto-start" disabled={!!pending || state.halted || state.position === 9 || state.aiReady?.ok === false} title="Chạy liên tục B0→B8, dừng ở hồ sơ dự kiến để bạn duyệt" onClick={() => void api(`/sessions/${sessionId}/auto`, { method: 'POST', json: { on: true } }).then(refresh).catch((e) => toast(e instanceof Error ? e.message : String(e)))}>
+                  ▶▶ Chạy tự động tới B8
+                </button>
+              )
+            ) : null}
             <button id="fast" disabled={!state?.fast.available || !!pending} onClick={() => void guide.startFast()} title={state?.fast.summary}>
               ↗ Giao bản thử nhanh
             </button>

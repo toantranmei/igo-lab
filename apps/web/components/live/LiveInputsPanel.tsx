@@ -18,6 +18,7 @@ interface Info {
   worker: { ok: boolean; message: string };
   stop: { reason: string } | null;
 }
+interface HfDataset { id: string; state: 'QUEUED' | 'DOWNLOADING' | 'READY' | 'FAILED'; progress: string; error: { code: string; message: string } | null; rows: number | null; bytes: number | null; license: string | null; revision: string | null; downloaded_at: string | null }
 interface HfRow { row: number; title: string; org: string; text: string; chars: number; source_ref: string }
 interface HfScan { id: string; state: 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED'; progress: string; role?: string; error: { code: string; message: string } | null; result: { dataset: string; license: string | null; dataset_rows: number; keywords: string[]; candidate_titles: number; candidate_rows: number; judged_titles: number; truncated: boolean; total_rows: number; hits: { row: number; title: string }[] } | null }
 const errText = (e: unknown) => (e instanceof ApiError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : String(e));
@@ -34,9 +35,11 @@ export default function LiveInputsPanel() {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [ack, setAck] = useState(false);
+  const [autoRun, setAutoRun] = useState(true);
   const [base, setBase] = useState<string>('latest');
   const fileRef = useRef<HTMLInputElement>(null);
-  const [hf, setHf] = useState({ link: '', role: '' });
+  const [hf, setHf] = useState({ link: '', dataset: '', role: '' });
+  const [datasets, setDatasets] = useState<HfDataset[]>([]);
   const [scan, setScan] = useState<HfScan | null>(null);
   const [hfPick, setHfPick] = useState<number[]>([]);
   const [hfText, setHfText] = useState<Record<number, string>>({});
@@ -76,7 +79,43 @@ export default function LiveInputsPanel() {
       setBusy(false);
     }
   };
-  // AI scan of a Hugging Face dataset: queued on the server, run by the worker, polled here.
+  // Datasets downloaded to the server (the worker downloads; polled while one is in progress).
+  const loadDatasets = useCallback(async () => {
+    try {
+      const d = await api<HfDataset[]>('/sources/datasets');
+      setDatasets(d);
+      setHf((h) => (h.dataset && d.some((x) => x.id === h.dataset && x.rows) ? h : { ...h, dataset: d.find((x) => x.rows)?.id ?? '' }));
+    } catch {
+      /* the list is optional */
+    }
+  }, []);
+  useEffect(() => void loadDatasets(), [loadDatasets]);
+  const downloading = datasets.some((d) => d.state === 'QUEUED' || d.state === 'DOWNLOADING');
+  useEffect(() => {
+    if (!downloading) return;
+    const t = setInterval(() => void loadDatasets(), 2000);
+    return () => clearInterval(t);
+  }, [downloading, loadDatasets]);
+  const hfDownload = async (link: string) => {
+    setErr('');
+    try {
+      await api('/sources/datasets', { method: 'POST', json: { link } });
+      setHf((h) => ({ ...h, link: '' }));
+      await loadDatasets();
+    } catch (e) {
+      setErr(errText(e));
+    }
+  };
+  const hfRemove = async (id: string) => {
+    if (!window.confirm(`Xóa bản tải về của ${id} khỏi máy chủ? JD đã đưa vào phiên không bị ảnh hưởng.`)) return;
+    try {
+      await api(`/sources/datasets/${id}`, { method: 'DELETE' });
+      await loadDatasets();
+    } catch (e) {
+      setErr(errText(e));
+    }
+  };
+  // AI scan of a downloaded dataset: queued on the server, run by the worker, polled here.
   const hfScan = async () => {
     setErr('');
     setScan(null);
@@ -84,7 +123,7 @@ export default function LiveInputsPanel() {
     setHfText({});
     setHfShown(50);
     try {
-      const { id } = await api<{ id: string }>('/sources/huggingface/searches', { method: 'POST', json: { link: hf.link, role: hf.role.trim() || info?.session.role_title } });
+      const { id } = await api<{ id: string }>('/sources/searches', { method: 'POST', json: { dataset: hf.dataset, role: hf.role.trim() || info?.session.role_title } });
       setScan({ id, state: 'QUEUED', progress: 'Đang chờ worker…', result: null, error: null });
     } catch (e) {
       setErr(errText(e));
@@ -94,7 +133,7 @@ export default function LiveInputsPanel() {
   const scanActive = scan?.state === 'QUEUED' || scan?.state === 'RUNNING';
   useEffect(() => {
     if (!scanId || !scanActive) return;
-    const t = setInterval(() => void api<HfScan>(`/sources/huggingface/searches/${scanId}`).then(setScan).catch(() => {}), 1500);
+    const t = setInterval(() => void api<HfScan>(`/sources/searches/${scanId}`).then(setScan).catch(() => {}), 1500);
     return () => clearInterval(t);
   }, [scanId, scanActive]);
   const hfRoom = Math.max(0, (info?.limits.maxFiles ?? 20) - (kept?.length ?? 0) - drafts.filter((d) => d.ok).length);
@@ -102,7 +141,7 @@ export default function LiveInputsPanel() {
     if (hfText[row] !== undefined) return;
     setHfText((m) => ({ ...m, [row]: 'Đang tải…' }));
     try {
-      const [h] = await api<HfRow[]>('/sources/huggingface/rows', { method: 'POST', json: { link: hf.link, rows: [row] } });
+      const [h] = await api<HfRow[]>('/sources/rows', { method: 'POST', json: { dataset: scan?.result?.dataset, rows: [row] } });
       setHfText((m) => ({ ...m, [row]: h?.text ?? 'Không đọc được dòng này.' }));
     } catch (e) {
       setHfText((m) => ({ ...m, [row]: errText(e) }));
@@ -112,7 +151,7 @@ export default function LiveInputsPanel() {
     setErr('');
     setBusy(true);
     try {
-      const picked = await api<HfRow[]>('/sources/huggingface/rows', { method: 'POST', json: { link: hf.link, rows: hfPick } });
+      const picked = await api<HfRow[]>('/sources/rows', { method: 'POST', json: { dataset: scan?.result?.dataset, rows: hfPick } });
       const form = new FormData();
       form.set('meta', JSON.stringify(picked.map((h) => ({ name: `${h.title}${h.org ? ` — ${h.org}` : ''} (HF #${h.row})`, text: h.text, source_ref: h.source_ref, origin_group: h.org }))));
       const r = await api<{ documents: any[] }>(`/sessions/${sessionId}/jd-sets/preview`, { method: 'POST', body: form });
@@ -164,7 +203,8 @@ export default function LiveInputsPanel() {
       setAck(false);
       await load();
       await refresh();
-      toast(`Đã tạo lượt ${String(r.run_no).padStart(2, '0')}. Bấm "Tiến 1 bước" để chạy B0.`);
+      if (autoRun) await api(`/sessions/${sessionId}/auto`, { method: 'POST', json: { on: true } }).catch((e) => setErr(errText(e)));
+      toast(autoRun ? `Đã tạo lượt ${String(r.run_no).padStart(2, '0')} và bắt đầu chạy tự động B0→B8.` : `Đã tạo lượt ${String(r.run_no).padStart(2, '0')}. Bấm "Tiến 1 bước" để chạy B0.`);
       router.push(`/s/${sessionId}/line`);
     } catch (e) {
       setErr(errText(e));
@@ -231,12 +271,46 @@ export default function LiveInputsPanel() {
       </div>
 
       <div className="cl-card" id="hf-import">
-        <b>Hoặc để AI quét một dataset tuyển dụng trên Hugging Face</b>
-        <p className="dim">Dán link dataset công khai và nêu vị trí bằng tiếng Việt hoặc tiếng Anh. AI sinh từ khóa chức danh ở cả hai ngôn ngữ, code lọc toàn bộ dataset theo các từ khóa đó, rồi AI duyệt từng chức danh để chỉ giữ tin tuyển đúng vị trí. Chỉ tên vị trí và danh sách chức danh được gửi tới AI ở bước này; nội dung JD chưa được gửi. Bạn tự chịu trách nhiệm về giấy phép của dataset.</p>
+        <b>Hoặc lấy JD từ dataset tuyển dụng trên Hugging Face</b>
+        <p className="dim">Bước 1: tải dataset công khai về máy chủ (một lần; có đủ toàn bộ JD). Bước 2: chọn dataset, nêu vị trí bằng tiếng Việt hoặc tiếng Anh; AI sinh từ khóa chức danh ở cả hai ngôn ngữ, code lọc toàn bộ tiêu đề, rồi AI duyệt từng chức danh để chỉ giữ tin đúng vị trí. Ở bước quét chỉ tên vị trí và danh sách chức danh được gửi tới AI. Bạn tự chịu trách nhiệm về giấy phép của dataset.</p>
+        {datasets.length ? (
+          <div className="scroll-x">
+            <table className="cl-table" data-testid="hf-datasets">
+              <thead><tr><th>Dataset trên máy chủ</th><th>Số dòng</th><th>Dung lượng</th><th>Giấy phép</th><th>Bản tải</th><th /></tr></thead>
+              <tbody>
+                {datasets.map((d) => (
+                  <tr key={d.id} data-state={d.state}>
+                    <td className="cl-mono">{d.id}</td>
+                    <td>{d.rows?.toLocaleString('vi-VN') ?? '—'}</td>
+                    <td>{d.bytes ? `${Math.round(d.bytes / 1048576)} MB` : '—'}</td>
+                    <td>{d.rows ? d.license ? <span className={/nc|unknown|other/i.test(d.license) ? 'cl-warn' : undefined}>{d.license}</span> : <span className="cl-warn">không khai báo</span> : '—'}</td>
+                    <td>
+                      {d.state === 'QUEUED' || d.state === 'DOWNLOADING' ? <span role="status">⏳ {d.progress}</span> : d.downloaded_at ? <>{new Date(d.downloaded_at).toLocaleString('vi-VN')}{d.revision ? <span className="cl-mono dim"> @{d.revision.slice(0, 8)}</span> : null}</> : null}
+                      {d.error ? <div className="cl-err">{d.error.code}: {d.error.message}</div> : null}
+                    </td>
+                    <td>
+                      <button className="ghost" disabled={d.state === 'QUEUED' || d.state === 'DOWNLOADING'} onClick={() => hfDownload(d.id)}>Cập nhật</button>{' '}
+                      <button className="ghost" disabled={d.state === 'DOWNLOADING'} onClick={() => hfRemove(d.id)}>Xóa</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : <p className="dim">Chưa có dataset nào trên máy chủ.</p>}
         <div className="cl-row">
-          <label className="cl-field" style={{ flex: 2 }}>Link dataset<input id="hf-link" value={hf.link} onChange={(e) => setHf({ ...hf, link: e.target.value })} placeholder="https://huggingface.co/datasets/<tác giả>/<tên>" /></label>
+          <label className="cl-field" style={{ flex: 2 }}>Thêm dataset (link Hugging Face)<input id="hf-link" value={hf.link} onChange={(e) => setHf({ ...hf, link: e.target.value })} placeholder="https://huggingface.co/datasets/<tác giả>/<tên>" /></label>
+          <button id="hf-download" onClick={() => hfDownload(hf.link)} disabled={!hf.link.trim()}>Tải về máy chủ</button>
+        </div>
+        <div className="cl-row">
+          <label className="cl-field" style={{ flex: 2 }}>Dataset để quét
+            <select id="hf-dataset" value={hf.dataset} onChange={(e) => setHf({ ...hf, dataset: e.target.value })}>
+              {datasets.filter((d) => d.rows).map((d) => <option key={d.id} value={d.id}>{d.id} · {d.rows!.toLocaleString('vi-VN')} dòng</option>)}
+              {!datasets.some((d) => d.rows) ? <option value="">(chưa có dataset sẵn sàng)</option> : null}
+            </select>
+          </label>
           <label className="cl-field" style={{ flex: 1 }}>Vị trí cần tìm (Việt hoặc Anh)<input id="hf-role" value={hf.role} onChange={(e) => setHf({ ...hf, role: e.target.value })} placeholder={info.session.role_title} /></label>
-          <button id="hf-scan" onClick={hfScan} disabled={busy || scanActive || !hf.link.trim()}>AI quét dataset</button>
+          <button id="hf-scan" onClick={hfScan} disabled={busy || scanActive || !hf.dataset}>AI quét dataset</button>
         </div>
         {scanActive ? <p role="status" data-testid="hf-progress">⏳ {scan!.progress}</p> : null}
         {scan?.state === 'FAILED' ? <p className="cl-err" role="alert"><b>{scan.error?.code}</b>: {scan.error?.message}</p> : null}
@@ -331,6 +405,7 @@ export default function LiveInputsPanel() {
         </select>
       </label>
       <label className="cl-row"><input id="run-ack" type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} /> Tôi hiểu nội dung JD và sự kiện sẽ được gửi tới Anthropic qua Claude CLI khi chạy các block có AI.</label>
+      <label className="cl-row"><input id="run-auto" type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} /> Chạy tự động B0→B8 ngay sau khi tạo lượt (dừng ở hồ sơ dự kiến: khung mới và thay đổi từ điển chờ bạn duyệt). Bỏ chọn để tự bấm và xem từng block.</label>
       <div className="cl-row">
         <button id="run-create" className="primary" onClick={createRun} disabled={busy || !ack || !info.jd_set || dirty || !!info.stop}>{info.run ? 'Tạo lượt mới' : 'Tạo lượt đầu tiên'}</button>
         {!info.jd_set ? <span className="dim">Cần xác nhận bộ JD trước.</span> : dirty ? <span className="dim">Xác nhận thay đổi bộ JD trước.</span> : runIsCurrent ? <span className="dim">Lượt hiện tại đang dùng đúng bộ JD này; tạo lượt mới sẽ chạy lại từ B0 (kết quả agent cũ được dùng lại, không gọi lại).</span> : null}

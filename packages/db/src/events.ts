@@ -14,6 +14,8 @@ export type EventType =
   | 'APPROVAL'
   | 'RELEASE_COMMITTED'
   | 'ACKNOWLEDGED'
+  | 'AUTO_STARTED'
+  | 'AUTO_STOPPED'
   | 'STOP_RAISED'
   | 'STOP_CLEARED'
   | 'LESSON_DECIDED'

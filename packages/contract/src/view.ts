@@ -250,6 +250,8 @@ export interface SessionState {
   nextRunHint: string;
   trial: DictFrame | null;
   aiReady?: { ok: boolean; message: string };
+  /** Live only: auto-run switch of the current run and the block it is on. */
+  auto?: { on: boolean; note: string; running: BlockId | null };
 }
 
 export interface SessionListItem {

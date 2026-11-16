@@ -1,13 +1,18 @@
 import { AppError } from '@cl/contract';
-import { asyncBufferFromUrl, parquetMetadataAsync, parquetRead } from 'hyparquet';
+import { createWriteStream, existsSync } from 'node:fs';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
+import path from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { asyncBufferFromFile, parquetMetadataAsync, parquetRead, parquetReadObjects } from 'hyparquet';
 import { compressors } from 'hyparquet-compressors';
 
 /**
- * Hugging Face dataset import: the user pastes a dataset link, searches by job title and picks rows.
- * Only Hugging Face's public endpoints are called (the pasted link only supplies
- * the dataset id), and nothing about the user or the session is sent — the keyword is matched locally.
+ * Hugging Face datasets as a JD source. A dataset is downloaded once (its Parquet files, into the server's
+ * data directory) and everything after that — listing titles, reading the rows the user picks — is local.
+ * Only Hugging Face's public hub endpoints are called, the pasted link only supplies the dataset id, and
+ * nothing about the user or the session is sent.
  */
-const API = 'https://datasets-server.huggingface.co';
 const HUB = 'https://huggingface.co/api/datasets';
 const ID = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}$/;
 
@@ -68,75 +73,128 @@ async function get(url: string): Promise<any> {
   throw new AppError('HF_UNAVAILABLE', `Hugging Face không trả dữ liệu: ${last}. Dataset phải công khai; nếu là lỗi tạm thời hãy thử lại sau ít phút.`, 502, null, ['RETRY']);
 }
 
-interface Meta { dataset: string; config: string; split: string; columns: HfColumns; total: number | null; license: string | null }
-const metaCache = new Map<string, { at: number; meta: Meta }>();
-export async function datasetMeta(dataset: string): Promise<Meta> {
-  const hit = metaCache.get(dataset);
-  if (hit && Date.now() - hit.at < 600_000) return hit.meta;
-  const info = await get(`${API}/info?dataset=${encodeURIComponent(dataset)}`);
-  const configs = Object.keys(info.dataset_info ?? {});
-  const config = configs.includes('default') ? 'default' : configs[0];
-  if (!config) throw new AppError('HF_SCHEMA_UNSUPPORTED', 'Dataset chưa có bản xem dạng bảng trên Hugging Face.', 422);
-  const ci = info.dataset_info[config];
-  const splits = Object.keys(ci.splits ?? {});
-  const split = splits.includes('train') ? 'train' : splits[0];
-  const hub = await get(`${HUB}/${dataset}`).catch(() => null);
-  const license = hub?.cardData?.license ?? null;
-  const meta: Meta = { dataset, config, split, columns: detectColumns(Object.keys(ci.features ?? {})), total: ci.splits?.[split]?.num_examples ?? null, license: Array.isArray(license) ? license.join(', ') : license };
-  metaCache.set(dataset, { at: Date.now(), meta });
-  return meta;
+/** Where datasets live: DATA_DIR when absolute (Docker), otherwise <repo root>/data so web and worker agree. */
+export function datasetsDir(): string {
+  const env = process.env.DATA_DIR;
+  if (env && path.isAbsolute(env)) return path.join(env, 'datasets');
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    if (existsSync(path.join(dir, 'pnpm-workspace.yaml'))) return path.join(dir, env ?? 'data', 'datasets');
+    dir = path.dirname(dir);
+  }
+  return path.resolve(env ?? 'data', 'datasets');
+}
+const dirOf = (dataset: string) => path.join(datasetsDir(), parseDatasetId(dataset).replace('/', '__'));
+
+export interface LocalDataset {
+  dataset: string;
+  config: string;
+  split: string;
+  /** Commit of the dataset repo at download time. */
+  revision: string | null;
+  license: string | null;
+  files: { name: string; rows: number; bytes: number }[];
+  rows: number;
+  bytes: number;
+  columns: HfColumns;
+  downloaded_at: string;
 }
 
-export interface HfHit { row: number; title: string; org: string; text: string; chars: number; source_ref: string }
-
-/**
- * Job titles of the whole split, read straight from the dataset's Parquet files (only that one column, by
- * HTTP range requests). This does not depend on Hugging Face's search/filter endpoints, which fail on their
- * own from time to time, and gives exact match counts. Kept in memory briefly, for at most two datasets.
- */
-const titleCache = new Map<string, { at: number; titles: string[] }>();
-async function allTitles(meta: Meta): Promise<string[]> {
-  const hit = titleCache.get(meta.dataset);
-  if (hit && Date.now() - hit.at < 900_000) return hit.titles;
-  const list = await get(`${HUB}/${meta.dataset}/parquet`);
-  const urls: string[] = list?.[meta.config]?.[meta.split] ?? [];
-  if (!urls.length || urls.some((u) => !u.startsWith(`${HUB}/${meta.dataset}/parquet/`))) throw new AppError('HF_SCHEMA_UNSUPPORTED', 'Dataset chưa có bản Parquet công khai để đọc.', 422);
-  const titles: string[] = [];
+/** Downloads the dataset's Parquet files (the hub's converted copy) and reads their schema. */
+export async function downloadDataset(link: string, onProgress: (text: string) => Promise<unknown> | void = () => {}): Promise<LocalDataset> {
+  const dataset = parseDatasetId(link);
+  const hub = await get(`${HUB}/${dataset}`);
+  if (hub.private || hub.gated) throw new AppError('HF_NOT_PUBLIC', 'Dataset này yêu cầu đăng nhập hoặc chấp nhận điều khoản trên Hugging Face; chỉ hỗ trợ dataset công khai.', 422);
+  const listing = await get(`${HUB}/${dataset}/parquet`);
+  const configs = Object.keys(listing ?? {});
+  const config = configs.includes('default') ? 'default' : configs[0];
+  const splits = Object.keys(listing?.[config] ?? {});
+  const split = splits.includes('train') ? 'train' : splits[0];
+  const urls: string[] = listing?.[config]?.[split] ?? [];
+  if (!urls.length || urls.some((u) => !u.startsWith(`${HUB}/${dataset}/parquet/`))) throw new AppError('HF_SCHEMA_UNSUPPORTED', 'Dataset chưa có bản Parquet công khai để tải.', 422);
+  const dir = dirOf(dataset);
+  const tmp = `${dir}.tmp`;
+  await rm(tmp, { recursive: true, force: true });
+  await mkdir(tmp, { recursive: true });
+  const mb = (n: number) => `${(n / 1048576).toFixed(0)} MB`;
+  const files: LocalDataset['files'] = [];
   try {
-    for (const url of urls) {
-      const file = await asyncBufferFromUrl({ url });
-      const metadata = await parquetMetadataAsync(file);
-      await parquetRead({ file, metadata, columns: [meta.columns.title], compressors, onComplete: (rows) => { for (const r of rows) titles.push(String(r[0] ?? '')); } });
+    for (let i = 0; i < urls.length; i++) {
+      const res = await fetch(urls[i]);
+      if (!res.ok || !res.body) throw new AppError('HF_UNAVAILABLE', `Không tải được file ${i + 1}/${urls.length}: HTTP ${res.status}.`, 502, null, ['RETRY']);
+      const total = Number(res.headers.get('content-length') ?? 0);
+      let got = 0;
+      let last = 0;
+      const name = `${i}.parquet`;
+      const body = Readable.fromWeb(res.body as any);
+      body.on('data', (chunk: Buffer) => {
+        got += chunk.length;
+        if (Date.now() - last > 1500) {
+          last = Date.now();
+          void onProgress(`Đang tải file ${i + 1}/${urls.length}: ${mb(got)}${total ? ` / ${mb(total)}` : ''}`);
+        }
+      });
+      await pipeline(body, createWriteStream(path.join(tmp, name)));
+      files.push({ name, rows: 0, bytes: got });
     }
+    await onProgress('Đang đọc cấu trúc dữ liệu…');
+    let names: string[] = [];
+    for (const f of files) {
+      const md = await parquetMetadataAsync(await asyncBufferFromFile(path.join(tmp, f.name)));
+      f.rows = Number(md.num_rows);
+      names = md.schema.slice(1).map((c) => c.name);
+    }
+    const columns = detectColumns(names);
+    await rm(dir, { recursive: true, force: true });
+    await rename(tmp, dir);
+    const license = hub?.cardData?.license ?? null;
+    return { dataset, config, split, revision: hub.sha ?? null, license: Array.isArray(license) ? license.join(', ') : license, files, rows: files.reduce((n, f) => n + f.rows, 0), bytes: files.reduce((n, f) => n + f.bytes, 0), columns, downloaded_at: new Date().toISOString() };
   } catch (e) {
-    throw new AppError('HF_UNAVAILABLE', `Không đọc được file Parquet của dataset: ${e instanceof Error ? e.message : e}. Thử lại sau ít phút.`, 502, null, ['RETRY']);
+    await rm(tmp, { recursive: true, force: true });
+    if (e instanceof AppError) throw e;
+    throw new AppError('HF_UNAVAILABLE', `Tải dataset thất bại: ${e instanceof Error ? e.message : e}`, 502, null, ['RETRY']);
+  }
+}
+export async function removeDataset(dataset: string) {
+  await rm(dirOf(dataset), { recursive: true, force: true });
+}
+async function open(ds: LocalDataset, name: string) {
+  const p = path.join(dirOf(ds.dataset), name);
+  if (!(await stat(p).catch(() => null))) throw new AppError('DATASET_MISSING', `File của dataset ${ds.dataset} không còn trên máy chủ. Bấm "Cập nhật" để tải lại.`, 409, null, ['REDOWNLOAD']);
+  return asyncBufferFromFile(p);
+}
+
+/** Every job title of the dataset, in row order. Kept in memory briefly, for at most two datasets. */
+const titleCache = new Map<string, { at: number; titles: string[] }>();
+export async function localTitles(ds: LocalDataset): Promise<string[]> {
+  const key = `${ds.dataset}@${ds.downloaded_at}`;
+  const hit = titleCache.get(key);
+  if (hit && Date.now() - hit.at < 900_000) return hit.titles;
+  const titles: string[] = [];
+  for (const f of ds.files) {
+    const file = await open(ds, f.name);
+    await parquetRead({ file, columns: [ds.columns.title], compressors, onComplete: (rows) => { for (const r of rows) titles.push(String(r[0] ?? '')); } });
   }
   if (titleCache.size >= 2) titleCache.delete([...titleCache.keys()][0]);
-  titleCache.set(meta.dataset, { at: Date.now(), titles });
+  titleCache.set(key, { at: Date.now(), titles });
   return titles;
-}
-export async function datasetTitles(link: string) {
-  const meta = await datasetMeta(parseDatasetId(link));
-  return { meta, titles: await allTitles(meta) };
 }
 /** Accent- and case-insensitive form used to match Vietnamese typed with or without diacritics. */
 export const foldTitle = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** Full JD text of specific rows (the user's selection), read one by one from the public rows endpoint. */
-export async function fetchRows(link: string, rows: number[]): Promise<HfHit[]> {
-  const meta = await datasetMeta(parseDatasetId(link));
-  const want = [...new Set(rows.filter((r) => Number.isInteger(r) && r >= 0))].slice(0, 50);
-  const ds = `dataset=${encodeURIComponent(meta.dataset)}&config=${encodeURIComponent(meta.config)}&split=${encodeURIComponent(meta.split)}`;
+export interface HfHit { row: number; title: string; org: string; text: string; chars: number; source_ref: string }
+/** Full JD text of specific rows, read from the local copy. */
+export async function localRows(ds: LocalDataset, rows: number[]): Promise<HfHit[]> {
+  const want = [...new Set(rows.filter((r) => Number.isInteger(r) && r >= 0 && r < ds.rows))].slice(0, 200);
+  const columns = [...new Set([ds.columns.title, ...(ds.columns.org ? [ds.columns.org] : []), ...ds.columns.body.map((b) => b.column)])];
   const hits: HfHit[] = [];
-  for (let i = 0; i < want.length; i += 3) {
-    const got = await Promise.all(want.slice(i, i + 3).map((idx) => get(`${API}/rows?${ds}&offset=${idx}&length=1`)));
-    got.forEach((res, k) => {
-      const r = res.rows?.[0];
-      if (!r) return;
-      const jd = rowToJd(r.row, meta.columns);
-      const row = want[i + k];
-      hits.push({ row, ...jd, chars: Array.from(jd.text).length, source_ref: `https://huggingface.co/datasets/${meta.dataset} · ${meta.split} · dòng ${row}` });
-    });
+  for (const row of want) {
+    let start = 0;
+    const f = ds.files.find((x) => (row < start + x.rows ? true : ((start += x.rows), false)))!;
+    const [rec] = await parquetReadObjects({ file: await open(ds, f.name), columns, rowStart: row - start, rowEnd: row - start + 1, compressors });
+    if (!rec) continue;
+    const jd = rowToJd(rec as Record<string, unknown>, ds.columns);
+    hits.push({ row, ...jd, chars: Array.from(jd.text).length, source_ref: `https://huggingface.co/datasets/${ds.dataset}${ds.revision ? ` @${ds.revision.slice(0, 8)}` : ''} · ${ds.split} · dòng ${row}` });
   }
   return hits;
 }

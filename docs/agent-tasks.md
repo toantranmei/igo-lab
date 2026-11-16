@@ -232,3 +232,12 @@ Output của LLM **không lặp lại từng bit**: hai lời gọi mới với 
 | Model ID đầy đủ, cấu hình khóa theo lượt | Lượt cũ không đổi kết quả khi cấu hình mặc định thay đổi | Hành vi của CLI hoặc model phía nhà cung cấp vẫn có thể thay đổi theo thời gian |
 
 Backup bundle chứa `runs/agent_calls.jsonl` và `runs/agent_results.jsonl`, nên một lượt khôi phục ở môi trường khác dùng lại được kết quả đã lưu mà không gọi lại agent (trừ gói xuất với `metadata_only`, khi đó `agent_results.jsonl` rỗng). Xem `docs/bundle-format.md`.
+
+## Tác vụ ngoài dây chuyền B0–B8 (quét dataset)
+
+Dùng khi tìm JD của một vị trí trong dataset Hugging Face đã tải về máy chủ (`packages/pipeline/src/source-search.ts`). Chạy qua cùng `runTask` nên có cùng cache, schema chặt và một lần sửa lỗi.
+
+| Tác vụ | Model · effort | Input | Output | Kiểm phía code |
+| --- | --- | --- | --- | --- |
+| `T14.title_keywords` | sonnet · low | `role_title` (Việt hoặc Anh) | `keywords[]`: cụm từ hay có trong tiêu đề tin tuyển của đúng vị trí, cả hai ngôn ngữ | Chuẩn hóa chữ thường, bỏ cụm dưới 3 hoặc trên 40 ký tự, khử trùng, tối đa 12 |
+| `T15.title_match` | haiku · medium | `role_title`, `titles[{id,title}]` (lô 120) | `match_ids[]`: id các tiêu đề tuyển đúng vị trí | Mọi id phải có trong input; sắp xếp, khử trùng |

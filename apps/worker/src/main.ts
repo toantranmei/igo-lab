@@ -1,6 +1,6 @@
 import { ClaudeCliRunner } from '@cl/agents';
 import { closeDb, getDb } from '@cl/db';
-import { processNextJob, processNextSourceSearch, writeWorkerStatus } from '@cl/pipeline';
+import { processNextDataset, processNextJob, processNextSourceSearch, writeWorkerStatus } from '@cl/pipeline';
 
 /**
  * Worker: the only process that talks to the Claude CLI. It polls the job table, runs one block
@@ -28,7 +28,7 @@ async function main() {
         await heartbeat();
         lastBeat = Date.now();
       }
-      const worked = (await processNextJob(db, runner)) || (await processNextSourceSearch(db, runner));
+      const worked = (await processNextJob(db, runner)) || (await processNextSourceSearch(db, runner)) || (await processNextDataset(db));
       if (!worked) await new Promise((r) => setTimeout(r, idle));
     } catch (e) {
       console.error('[worker] lỗi vòng lặp:', e instanceof Error ? e.message : e);

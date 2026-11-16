@@ -4,9 +4,9 @@ import { AppError } from '@cl/contract';
 import { DEFAULT_AGENT_CONFIG, MIN_CLI_VERSION } from '@cl/agents';
 import { commitImport, createExport, exportFramework, listExports, previewImport, type ImportMode } from '@cl/bundle';
 import { DEFAULT_WORKSPACE_ID, getDb, t, verifyEventChain } from '@cl/db';
-import { defaultBlobStore, fetchRows, uploadLimits, SUPPORTED_EXTENSIONS } from '@cl/ingest';
+import { defaultBlobStore, uploadLimits, SUPPORTED_EXTENSIONS } from '@cl/ingest';
 import {
-  DEFAULT_POLICY, acknowledge, createSourceSearch, getSourceSearch, addUserEvent, assertBlock, confirmJdSet, createRun, createSession, currentRun, getCandidate, getDetail, getSession, getState, getTrace, latestJdSet, listSessions, listUserEvents, liveCatalog, loadDocs, localActor, previewDocuments, removeUserEvent, requirePermission, runPlan, setCursor, startAttempt, workerStatus,
+  DEFAULT_POLICY, acknowledge, createSourceSearch, datasetRows, deleteDataset, getSourceSearch, listDatasets, queueDataset, setAuto, addUserEvent, assertBlock, confirmJdSet, createRun, createSession, currentRun, getCandidate, getDetail, getSession, getState, getTrace, latestJdSet, listSessions, listUserEvents, liveCatalog, loadDocs, localActor, previewDocuments, removeUserEvent, requirePermission, runPlan, setCursor, startAttempt, workerStatus,
   type DocInput, type Permission,
 } from '@cl/pipeline';
 import { commitCandidate, decideCandidate, decideLessons, getStop, listReleases, loadDictionary, raiseStop, reopenWorkspace, revertRelease, toDictView } from '@cl/registry';
@@ -43,13 +43,16 @@ on('GET', '/sessions/:id', 'VIEW', async ({ p }) => {
   };
 });
 on('GET', '/limits', 'VIEW', async () => ({ ...uploadLimits(), extensions: SUPPORTED_EXTENSIONS }));
-// Public Hugging Face datasets as a JD source: an AI scan (queued here, run by the worker) finds the rows of a
-// role; the rows the user picks are then read and go through the normal preview below.
-on('POST', '/sources/huggingface/searches', 'OPERATE', async ({ body, actor }) => createSourceSearch(db(), WS, await body(), actor.id));
-on('GET', '/sources/huggingface/searches/:id', 'VIEW', ({ p }) => getSourceSearch(db(), WS, p.id));
-on('POST', '/sources/huggingface/rows', 'OPERATE', async ({ body }) => {
+// Public Hugging Face datasets as a JD source: downloaded once by the worker, then scanned by AI for a role;
+// the rows the user picks are read from the local copy and go through the normal preview below.
+on('GET', '/sources/datasets', 'VIEW', () => listDatasets(db(), WS));
+on('POST', '/sources/datasets', 'OPERATE', async ({ body, actor }) => queueDataset(db(), WS, String((await body()).link ?? ''), actor.id));
+on('DELETE', '/sources/datasets/:owner/:name', 'OPERATE', async ({ p }) => (await deleteDataset(db(), WS, `${p.owner}/${p.name}`), { ok: true }));
+on('POST', '/sources/searches', 'OPERATE', async ({ body, actor }) => createSourceSearch(db(), WS, await body(), actor.id));
+on('GET', '/sources/searches/:id', 'VIEW', ({ p }) => getSourceSearch(db(), WS, p.id));
+on('POST', '/sources/rows', 'OPERATE', async ({ body }) => {
   const b = await body();
-  return fetchRows(String(b.link ?? ''), Array.isArray(b.rows) ? b.rows.map(Number) : []);
+  return datasetRows(db(), WS, String(b.dataset ?? ''), Array.isArray(b.rows) ? b.rows.map(Number) : []);
 });
 on('POST', '/sessions/:id/jd-sets/preview', 'OPERATE', async ({ req, p }) => {
   await getSession(db(), WS, p.id);
@@ -68,6 +71,7 @@ on('POST', '/sessions/:id/runs', 'OPERATE', async ({ p, body, actor }) => {
   const ws = await workerStatus(db());
   return createRun(db(), WS, p.id, { acknowledge_send: !!b.acknowledge_send, base_release_id: b.base_release_id, jd_set_revision: b.jd_set_revision, cli_version: ws.cliVersion }, actor.id);
 });
+on('POST', '/sessions/:id/auto', 'OPERATE', async ({ p, body, actor }) => setAuto(db(), WS, p.id, !!(await body()).on, actor.id));
 on('GET', '/sessions/:id/state', 'VIEW', ({ p }) => getState(db(), WS, p.id));
 on('GET', '/sessions/:id/catalog', 'VIEW', ({ p }) => liveCatalog(db(), WS, p.id));
 on('GET', '/sessions/:id/candidate', 'VIEW', ({ p }) => getCandidate(db(), WS, p.id));

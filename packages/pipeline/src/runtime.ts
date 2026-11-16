@@ -101,7 +101,59 @@ export async function processNextJob(db: Db, runner: ClaudeCliRunner): Promise<b
   if (!claimed) return false;
   const ok = await runAttempt(db, runner, claimed.attempt_id);
   await db.update(t.job).set({ state: ok ? 'DONE' : 'FAILED' }).where(eq(t.job.id, claimed.id));
+  const [att] = await db.select().from(t.blockAttempt).where(eq(t.blockAttempt.id, claimed.attempt_id));
+  const [run] = att ? await db.select().from(t.run).where(eq(t.run.id, att.runId)) : [];
+  if (run) await advanceAuto(db, run.workspaceId, run.sessionId).catch((e) => console.error('[auto]', e?.message ?? e));
   return true;
+}
+
+/**
+ * Auto-run: from "start" to the B8 candidate without a click per block. The worker acknowledges each block
+ * that passed (actor "auto") and queues the next one. It stops by itself at a blocked gate, an error, STOP,
+ * or after B8 — it never decides the candidate and never commits to the dictionary.
+ */
+export async function getAuto(db: Db, runId: string) {
+  const [a] = await db.select().from(t.runAuto).where(eq(t.runAuto.runId, runId));
+  return { on: !!a?.on, note: a?.note ?? '' };
+}
+const putAuto = (db: Db, runId: string, on: boolean, note: string) => {
+  const updatedAt = new Date().toISOString();
+  return db.insert(t.runAuto).values({ runId, on, note, updatedAt }).onConflictDoUpdate({ target: t.runAuto.runId, set: { on, note, updatedAt } });
+};
+export async function setAuto(db: Db, workspaceId: string, sessionId: string, on: boolean, actor: string) {
+  const run = await currentRun(db, sessionId);
+  if (!run || run.workspaceId !== workspaceId) throw new AppError('NO_RUN', 'Phiên chưa có lượt chạy. Thêm JD và tạo lượt trước.', 409, undefined, ['CREATE_RUN']);
+  if (on) {
+    const ws = await workerStatus(db);
+    if (!ws.ok) throw new AppError('AGENT_CLI_UNAVAILABLE', ws.message, 503, undefined, ['RETRY']);
+  }
+  await putAuto(db, run.id, on, on ? 'Đang chạy tự động.' : 'Đã dừng chạy tự động theo yêu cầu.');
+  await appendEvent(db, { workspaceId, type: on ? 'AUTO_STARTED' : 'AUTO_STOPPED', actor, sessionId, runId: run.id, payload: {} });
+  if (on) await advanceAuto(db, workspaceId, sessionId);
+  return getAuto(db, run.id);
+}
+export async function advanceAuto(db: Db, workspaceId: string, sessionId: string): Promise<void> {
+  const run = await currentRun(db, sessionId);
+  if (!run || !(await getAuto(db, run.id)).on) return;
+  const off = (note: string) => putAuto(db, run.id, false, note);
+  if (run.status === 'COMPLETE') return void (await off('Lượt đã công bố.'));
+  if (await getStop(db, workspaceId)) return void (await off('Dừng: workspace đang STOP.'));
+  const cur = await currentAttempts(db, run.id);
+  const cs = await cursors(db, run.id);
+  for (const [b, a] of cur) {
+    if (a.status === 'STALE') continue;
+    if (a.status === 'QUEUED' || a.status === 'RUNNING') return; // the worker comes back here when it finishes
+    if (a.status === 'FAILED') return void (await off(`Dừng ở ${b}: lỗi ${(a.error as any)?.code ?? ''}. Xem chi tiết và bấm Thử lại.`));
+    if (a.status !== 'DONE') return void (await off(`Dừng ở ${b}: cổng chặn. Xem lý do ở thẻ ${b}.`));
+    if (!cs.get(b)?.acknowledgedAt) await acknowledge(db, workspaceId, sessionId, b, 'auto');
+  }
+  const next = MAIN_BLOCK_IDS.find((b) => cur.get(b)?.status !== 'DONE');
+  if (!next) return void (await off('Đã chạy xong B0–B8. Hồ sơ DỰ KIẾN chờ bạn duyệt để ghi vào từ điển.'));
+  try {
+    await startAttempt(db, workspaceId, sessionId, next, `auto-${newId('k')}`, { actor: 'auto' });
+  } catch (e: any) {
+    await off(`Dừng trước ${next}: ${e?.code ?? ''} ${e?.message ?? e}`.slice(0, 300));
+  }
 }
 
 export async function runAttempt(db: Db, runner: ClaudeCliRunner, attemptId: string): Promise<boolean> {
@@ -172,7 +224,9 @@ const EVENT_TEXT: Record<string, (p: any) => string> = {
   AUDIT: (p) => `Kiểm toán: ${p.conclusion}, ${p.findings} finding.`,
   APPROVAL: (p) => `Quyết định ${p.decision}: ${p.reason}`,
   RELEASE_COMMITTED: (p) => `Đã ghi release ${p.version_label ?? ''} (${p.release_id}).`,
-  ACKNOWLEDGED: () => 'Người dùng bấm "Đã hiểu".',
+  ACKNOWLEDGED: () => 'Xác nhận "Đã hiểu" (người dùng bấm, hoặc chế độ tự động).',
+  AUTO_STARTED: () => 'Bật chạy tự động tới B8.',
+  AUTO_STOPPED: () => 'Tắt chạy tự động.',
   STOP_RAISED: (p) => `STOP: ${p.reason}`,
   STOP_CLEARED: (p) => `Mở lại: ${p.reason}`,
   RUN_CREATED: () => 'Tạo lượt.',
@@ -200,7 +254,9 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
   }
   const pendingBlock = ALL.find((b) => cur.get(b) && cur.get(b)!.status !== 'STALE' && !acked(b));
   const pa = pendingBlock ? cur.get(pendingBlock)! : null;
-  const pending: PendingGuide | null = pendingBlock ? { id: pendingBlock, cursor: cs.get(pendingBlock)?.seq ?? 0, committed: computed(pa) } : null;
+  const auto = run ? await getAuto(db, run.id) : { on: false, note: '' };
+  // while auto-run is on nothing waits for the viewer: the worker acknowledges and moves on
+  const pending: PendingGuide | null = pendingBlock && !auto.on ? { id: pendingBlock, cursor: cs.get(pendingBlock)?.seq ?? 0, committed: computed(pa) } : null;
   const blocked = ALL.filter((b) => cur.get(b)?.status === 'BLOCKED');
   const haltReasons = [...(stop ? [`STOP toàn workspace: ${stop.reason}`] : []), ...blocked.flatMap((b) => ((cur.get(b)!.gates as GateResult[]) ?? []).filter(gateBlocks).map((g) => `${b} · ${g.name}`))];
   const halted = !!stop || blocked.some((b) => b !== 'FAST');
@@ -245,7 +301,7 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
   const ws = await workerStatus(db);
   const completed = run?.status === 'COMPLETE';
   const b8 = out('B8');
-  const statusText = !run ? (docs.length ? 'Đã có bộ JD · chưa tạo lượt' : 'Chưa có JD') : stop ? 'STOP · chờ mở lại' : completed ? `Đã công bố ${committedRelease?.versionLabel ?? ''}` : halted ? `Chặn tại ${blocked[0]}` : pending && !pending.committed ? `Đang tính ${pending.id}` : pending ? `Chờ "Đã hiểu" ${pending.id}` : position === 9 ? 'Chờ quyết định công bố' : `Sẵn sàng chạy B${position}`;
+  const statusText = !run ? (docs.length ? 'Đã có bộ JD · chưa tạo lượt' : 'Chưa có JD') : stop ? 'STOP · chờ mở lại' : completed ? `Đã công bố ${committedRelease?.versionLabel ?? ''}` : halted ? `Chặn tại ${blocked[0]}` : auto.on ? `Tự động · ${pendingBlock ? `đang chạy ${pendingBlock}` : 'đang chuyển block'}` : pending && !pending.committed ? `Đang tính ${pending.id}` : pending ? `Chờ "Đã hiểu" ${pending.id}` : position === 9 ? 'Chờ quyết định công bố' : `Sẵn sàng chạy B${position}`;
   return {
     mode: 'live',
     sessionId,
@@ -274,6 +330,7 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
     nextRunHint: !run ? 'Thêm JD và tạo lượt đầu tiên ở khung "Dữ liệu của phiên".' : completed ? 'Lượt đã công bố. Tạo lượt mới (dùng lại hoặc bổ sung JD) ở khung "Dữ liệu của phiên".' : stop ? 'Workspace đang STOP: xử lý lesson rồi mở lại trước khi chạy tiếp.' : halted ? 'Lượt bị chặn ở cổng. Sửa dữ liệu rồi tạo lượt mới; lượt cũ được giữ nguyên.' : 'Lượt đang chạy. Lượt mới tạo được bất cứ lúc nào; lượt cũ không bị sửa.',
     trial,
     aiReady: { ok: ws.ok, message: ws.message },
+    auto: { ...auto, running: auto.on ? (pendingBlock ?? null) : null },
   };
 }
 
