@@ -523,3 +523,28 @@ Mỗi mã A01–A09 thành một file test E2E cùng tên. A05 thêm hai kịch 
 5. **M5 — Registry:** draft, candidate, duyệt, commit, conflict, audit/lesson/STOP → A06, A07.
 6. **M6 — Export/Import** → A08.
 7. **M7 — Kiểm quyền cục bộ, quét rò rỉ, tài liệu bàn giao, chạy đủ A01–A09** → A09.
+
+## 18. Sai khác giữa bản triển khai và spec (cập nhật sau khi code xong)
+
+Phần này ghi những chỗ mã nguồn khác với các mục phía trên. Khi hai bên mâu thuẫn, mã nguồn và mục này là hiện trạng.
+
+| # | Mục spec | Hiện trạng trong code | Lý do |
+| --- | --- | --- | --- |
+| S1 | §5 bảng từ điển tách theo loại | Một bảng `dict_record` (`kind` = W/C/I/R/V/G, khóa `id + version`), cộng `release`, `candidate`, `finding`, `lesson` | Mọi loại cùng vòng đời bất biến theo phiên bản; một bảng làm commit nguyên tử và export/import đơn giản hơn |
+| S2 | §5 sự kiện thật | Bảng `user_event` gắn với phiên; khóa vào snapshot khi tạo lượt | Sự kiện thêm sau khi tạo lượt chỉ có hiệu lực từ lượt kế tiếp |
+| S3 | §5 | Thêm bảng `worker_status` (một dòng heartbeat) | Web không gọi CLI; nó đọc heartbeat của worker để khóa nút chạy Live kèm hướng dẫn |
+| S4 | §6 TraceEvent | Thêm trường `draft` (giá trị đang nháp) và `record_refs` (bản ghi mà beat đang đọc) | Bộ xem từng beat cần chúng để hiện "đang đọc gì" |
+| S5 | §9 B4 | Giả thuyết do agent đề xuất (T13) chỉ nằm trong output của lượt, **không** ghi vào từ điển và không tính là bằng chứng | Tránh để nội dung chưa kiểm chứng đi vào lõi |
+| S6 | §9 B6 | Năng lực có chỉ báo không đạt đồng thuận bị **loại khỏi lượt** (ghi rõ lý do), các năng lực còn lại đi tiếp; B7 mới là cổng chặn theo coverage | Một chỉ báo kém không nên chặn cả khung |
+| S7 | §4, §7 `position` ở Live | Bằng số block đã ĐẠT của lượt hiện tại | Live không có "con trỏ" mô phỏng như Example |
+| S8 | §4 catalog ở Live | Lấy từ các khung đã công bố; `score`, `frequency`, `core` để 0/false và UI ghi "chưa có công thức importance/criticality" | Live chưa có dữ liệu importance/criticality; không bịa số |
+| S9 | §14 API | Một route catch-all `app/api/[...path]` với bảng định tuyến ở `apps/web/lib/server/router.ts` | Giữ lớp API mỏng, kiểm quyền ở một chỗ |
+| S10 | §15 M1.4 (so khớp từng số với engine tham chiếu bằng cách chạy JS gốc) | **Chưa làm.** Engine Example được chuyển tay sang TypeScript và kiểm bằng các số ở YC §11 (unit + E2E A01) | Môi trường không cho thực thi mã JS tải về |
+| S11 | §15 | E2E chạy trên bản build production với Claude CLI giả (`tests/fake-claude/claude.mjs`); CLI thật chỉ được gọi bởi `pnpm verify:live` / `verify:stability` | Test phải tái lập được và không tốn token |
+| S12 | §12 | Chưa có ESLint/Prettier; `pnpm lint` hiện chỉ chạy typecheck. Chuỗi giao diện tiếng Việt nằm trong component, chưa gom về một file | Ưu tiên chức năng và kiểm thử |
+| S13 | §9.5 ước lượng số lời gọi | Lượt thật 2 JD mẫu: 37 lời gọi CLI, khoảng 2 phút (đo ngày 2026-11-16 bằng `pnpm verify:live`) | Số đo thực tế thay cho ước lượng |
+| S14 | §9.3 `task_key` | `canonicalJson` chỉ sắp xếp khóa object, **không** sắp xếp mảng; khóa có thêm `system_sha` (hash system prompt) | Thứ tự mảng do code dựng một cách xác định (theo ID) trước khi gọi; thêm `system_sha` để đổi prompt là đổi khóa |
+| S15 | §9.2 retry | Lỗi CLI tạm thời được thử lại **một** lần với độ trễ cố định (spec ghi hai lần có back-off) | Đủ cho lỗi thoáng qua; lỗi kéo dài trả về UI để người dùng bấm Thử lại |
+| S16 | §9.4 schema tác vụ | T5 không có `relation`, T7 không có `segment_ids`, T11 không có `level`; các giới hạn "tối đa N" được áp bằng cắt bớt trong bước chuẩn hóa. Chi tiết đúng theo code ở `docs/agent-tasks.md` | Rút gọn output để giảm bề mặt sai schema |
+| S17 | §13 backup theo phạm vi phiên | Finding và lesson luôn được xuất ở cấp workspace (không lọc theo phiên); nhật ký sự kiện chỉ có trong backup toàn workspace | Lesson/STOP là trạng thái của cả workspace; chuỗi hash sự kiện không cắt theo phiên được |
+| S18 | Biến môi trường | Không process nào tự nạp file `.env` ở gốc repo khi chạy trên máy (chỉ Docker Compose đọc); `pnpm dev`/`pnpm worker`/`pnpm db:migrate` dùng mặc định trong code trừ khi export biến trong shell | Xem README |

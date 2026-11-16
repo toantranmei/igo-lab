@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { AppError, MAIN_BLOCK_IDS, gateBlocks, type BlockCard, type BlockDetail, type BlockId, type BlockTrace, type CardState, type DictFrame, type GateResult, type InputDoc, type InputEvent, type InputTask, type Lesson, type LogEntry, type PendingGuide, type ReleaseHistoryEntry, type SessionState } from '@cl/contract';
+import { AppError, MAIN_BLOCK_IDS, scrubPaths, gateBlocks, type BlockCard, type BlockDetail, type BlockId, type BlockTrace, type CardState, type DictFrame, type GateResult, type InputDoc, type InputEvent, type InputTask, type Lesson, type LogEntry, type PendingGuide, type ReleaseHistoryEntry, type SessionState } from '@cl/contract';
 import { BLOCK_TASKS, ClaudeCliRunner, TASKS, shortModel, type TaskName } from '@cl/agents';
 import { appendEvent, hashJson, newId, t, type Db } from '@cl/db';
 import { getStop, listReleases, loadDictionary, toDictView } from '@cl/registry';
@@ -129,7 +129,7 @@ export async function runAttempt(db: Db, runner: ClaudeCliRunner, attemptId: str
     await appendEvent(db, { workspaceId: att.workspaceId, type: 'GATE_RESULT', actor: 'worker', sessionId: run.sessionId, runId: run.id, attemptId, block, payload: { gates: res.gates.map((g) => ({ gate_id: g.gate_id, name: g.name, status: g.status, actual: g.actual, criterion: g.criterion, required: g.required, reason: g.reason })) } });
     return true;
   } catch (e: any) {
-    const err = e instanceof AppError ? { code: e.code, message: e.message, actions: e.actions } : { code: 'INTERNAL', message: String(e?.message ?? e).slice(0, 500), actions: ['RETRY'] };
+    const err = e instanceof AppError ? { code: e.code, message: scrubPaths(e.message), actions: e.actions } : { code: 'INTERNAL', message: scrubPaths(String(e?.message ?? e)).slice(0, 500), actions: ['RETRY'] };
     // The draft of earlier blocks is untouched; this attempt just records why it stopped.
     await db.update(t.blockAttempt).set({ status: 'FAILED', error: err, computedAt: now }).where(eq(t.blockAttempt.id, attemptId));
     await appendEvent(db, { workspaceId: att.workspaceId, type: 'JOB_RESULT', actor: 'worker', sessionId: run.sessionId, runId: run.id, attemptId, block, payload: { status: 'FAILED', attempt_no: att.attemptNo, error: err } });

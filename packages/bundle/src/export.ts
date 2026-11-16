@@ -1,3 +1,4 @@
+import { scrubPaths } from '@cl/contract';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { strToU8, zipSync } from 'fflate';
 import { AppError } from '@cl/contract';
@@ -17,7 +18,6 @@ export interface BlobReader {
 
 const iso = (v: unknown) => (typeof v === 'string' && /^\d{4}-\d\d-\d\d[ T]/.test(v) ? new Date(v).toISOString() : v);
 const stamp = (row: Record<string, any>) => Object.fromEntries(Object.entries(row).map(([k, v]) => [k, /At$|Time$/.test(k) ? iso(v) : v]));
-const scrubPaths = (s: string) => s.replace(/(?:[A-Za-z]:\\|\/(?:Users|home|private|var|tmp|root|opt|mnt)\/)[^\s"'\\]*/g, '<path>');
 const jsonl = (rows: unknown[]) => rows.map((r) => JSON.stringify(r)).join('\n') + (rows.length ? '\n' : '');
 
 /** Build the ZIP inside one REPEATABLE READ read-only transaction so every file sees the same snapshot. */
@@ -78,7 +78,7 @@ export async function buildBundle(db: Db, blobs: BlobReader | null, workspaceId:
         'runs/jd_revisions.jsonl': jd,
         'runs/user_events.jsonl': sids.length ? await tx.select().from(t.userEvent).where(inArray(t.userEvent.sessionId, sids)).orderBy(asc(t.userEvent.createdAt)) : [],
         'runs/runs.jsonl': runs,
-        'runs/attempts.jsonl': attempts.map((a) => (opts.metadata_only ? { ...a, output: null, trace: null, redacted: true } : { ...a, error: a.error ? JSON.parse(scrubPaths(JSON.stringify(a.error))) : null })),
+        'runs/attempts.jsonl': attempts.map((a) => ({ ...a, ...(opts.metadata_only ? { output: null, trace: null, redacted: true } : {}), error: a.error ? JSON.parse(scrubPaths(JSON.stringify(a.error))) : null })),
         'runs/view_cursors.jsonl': rids.length ? await tx.select().from(t.viewCursor).where(inArray(t.viewCursor.runId, rids)).orderBy(asc(t.viewCursor.runId), asc(t.viewCursor.block)) : [],
         'runs/candidates.jsonl': rids.length ? await tx.select().from(t.candidate).where(inArray(t.candidate.runId, rids)).orderBy(asc(t.candidate.createdAt)) : [],
         'runs/findings.jsonl': await tx.select().from(t.finding).where(eq(t.finding.workspaceId, workspaceId)).orderBy(asc(t.finding.createdAt), asc(t.finding.id)),
@@ -117,7 +117,7 @@ export async function buildBundle(db: Db, blobs: BlobReader | null, workspaceId:
     scope: {
       sessions: opts.kind === 'backup' ? (opts.session_ids?.length ? opts.session_ids : 'all') : 'none',
       includes_blobs: includedBlobs > 0,
-      completeness: opts.kind === 'dictionary' ? 'Từ điển đã công bố (W/C/R/V/G + lịch sử release). Không có phiên, JD gốc, lượt chạy.' : opts.session_ids?.length ? 'Backup theo phạm vi phiên: từ điển đầy đủ + dữ liệu của các phiên đã chọn; không kèm nhật ký sự kiện nên không khôi phục được vào workspace rỗng với chuỗi kiểm toán đầy đủ.' : 'Backup đầy đủ: từ điển + mọi phiên, JD, lượt, nhật ký sự kiện, lời gọi agent.',
+      completeness: opts.kind === 'dictionary' ? 'Từ điển đã công bố (W/C/I/R/V/G + lịch sử release). Không có phiên, JD gốc, lượt chạy.' : opts.session_ids?.length ? 'Backup theo phạm vi phiên: từ điển đầy đủ + dữ liệu của các phiên đã chọn; không kèm nhật ký sự kiện nên không khôi phục được vào workspace rỗng với chuỗi kiểm toán đầy đủ.' : 'Backup đầy đủ: từ điển + mọi phiên, JD, lượt, nhật ký sự kiện, lời gọi agent.',
     },
     counts,
     files: [...files.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([path, bytes]) => ({ path, bytes: bytes.byteLength, sha256: sha256(bytes), ...(path.endsWith('.jsonl') ? { records: counts[path] ?? 0 } : {}) })),
@@ -156,7 +156,7 @@ export async function exportFramework(db: Db, workspaceId: string, input: { fram
     }
     for (const e of q.evidence_ids) evidence.push(e);
   }
-  const w = (await db.select().from(t.dictRecord).where(and(eq(t.dictRecord.workspaceId, workspaceId), eq(t.dictRecord.kind, 'W'), eq(t.dictRecord.id, `W-${data.role_id}`)))).filter((x) => x.releaseId === r.releaseId || x.version <= r.version).sort((a, b) => b.version - a.version)[0];
+  const w = (await db.select().from(t.dictRecord).where(and(eq(t.dictRecord.workspaceId, workspaceId), eq(t.dictRecord.kind, 'W'), eq(t.dictRecord.id, `W-${data.role_id}`)))).filter((x) => x.releaseId === r.releaseId || x.createdAt <= r.createdAt).sort((a, b) => b.version - a.version)[0];
   const taskIds = new Set(data.requirements.flatMap((q: any) => q.task_ids));
   return {
     format: 'competence-lab-framework',

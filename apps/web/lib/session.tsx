@@ -23,12 +23,18 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
   const [error, setError] = useState<string | null>(null);
   const [toastText, setToast] = useState('');
   const alive = useRef(true);
+  const lastJson = useRef('');
 
   const refresh = useCallback(async () => {
     try {
       const s = await source.getState();
       if (alive.current) {
-        setState(s);
+        // keep the previous object when nothing changed, so polling does not re-render or re-fetch details
+        const json = JSON.stringify(s);
+        if (json !== lastJson.current) {
+          lastJson.current = json;
+          setState(s);
+        }
         setError(null);
       }
     } catch (e) {
@@ -38,6 +44,7 @@ export function SessionProvider({ sessionId, children }: { sessionId: string; ch
 
   useEffect(() => {
     alive.current = true;
+    lastJson.current = '';
     setState(null);
     void refresh();
     const off = source.subscribe(() => void refresh());

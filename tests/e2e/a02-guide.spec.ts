@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 import { runBlock } from './helpers';
 
 test('A02 · Tiến 1 bước mở đúng ngăn, mặc định thủ công; bộ đếm đổi qua 2 JD; tải lại giữa block giữ cursor; tự động dừng chờ xác nhận', async ({ page }) => {
+  // deep link opens the block on the workbench without starting it
+  await page.goto('/s/example/line?block=B5');
+  await expect(page.getByRole('region', { name: 'Chi tiết block B5' })).toBeVisible();
   await page.goto('/s/example/line');
   await runBlock(page); // B0
   await page.locator('#step').click();

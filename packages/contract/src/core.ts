@@ -158,3 +158,6 @@ export class AppError extends Error {
     super(message);
   }
 }
+
+/** Replaces absolute host paths in free text (error messages, stderr) so they never reach storage or exports. */
+export const scrubPaths = (s: string) => s.replace(/(?:[A-Za-z]:\\|\/(?:Users|home|private|var|tmp|root|opt|mnt|app|data)\/)[^\s"'\\]*/g, '<path>');

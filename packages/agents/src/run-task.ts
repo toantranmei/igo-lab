@@ -1,5 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { AppError, canonicalJson } from '@cl/contract';
+import { AppError, canonicalJson, scrubPaths } from '@cl/contract';
 import { appendEvent, newId, sha256, t, type Db } from '@cl/db';
 import type { AgentConfig, TaskModel } from './config';
 import { ClaudeCliRunner } from './runner';
@@ -86,7 +86,7 @@ export async function runTask<K extends TaskName>(ctx: TaskContext, name: K, raw
     }
     if (!res.ok) {
       const status = res.errorCode === 'TIMEOUT' ? 'TIMEOUT' : 'CLI_ERROR';
-      await ctx.db.insert(t.agentCall).values({ id: callId, ...base, cacheHit: false, status, durationMs: res.durationMs, usage: res.usage ?? null, costUsd: res.costUsd ?? null, error: `${res.errorCode}: ${res.errorMessage ?? ''}`.slice(0, 500) });
+      await ctx.db.insert(t.agentCall).values({ id: callId, ...base, cacheHit: false, status, durationMs: res.durationMs, usage: res.usage ?? null, costUsd: res.costUsd ?? null, error: scrubPaths(`${res.errorCode}: ${res.errorMessage ?? ''}`).slice(0, 500) });
       const code = res.errorCode === 'CLI_NOT_FOUND' ? 'AGENT_CLI_UNAVAILABLE' : res.errorCode === 'NOT_LOGGED_IN' ? 'AGENT_NOT_LOGGED_IN' : res.errorCode === 'TIMEOUT' ? 'AGENT_TIMEOUT' : 'AGENT_CLI_ERROR';
       throw new AppError(code, `${task.id}: ${res.errorMessage ?? res.errorCode}`, 502, { task_id: task.id, call_id: callId }, ['RETRY']);
     }

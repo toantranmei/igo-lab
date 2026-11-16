@@ -22,6 +22,7 @@ services:
     command: ["pnpm", "db:migrate"]
     environment:
       DATABASE_OWNER_URL: postgres://cl_owner:${POSTGRES_OWNER_PASSWORD:-cl_owner_dev}@postgres:5432/competence_lab
+      CL_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-cl_app_dev}
     depends_on:
       postgres: { condition: service_healthy }
     profiles: ["app"]
@@ -32,6 +33,7 @@ services:
     environment:
       DATABASE_URL: postgres://cl_app:${POSTGRES_APP_PASSWORD:-cl_app_dev}@postgres:5432/competence_lab
       DATA_DIR: /data
+      HOST: 0.0.0.0 # inside the container only; the port is published on 127.0.0.1 below
       LOCAL_ACTOR_PERMISSIONS: ${LOCAL_ACTOR_PERMISSIONS:-VIEW,OPERATE,APPROVE,BACKUP_ADMIN}
     ports:
       # No login yet: publish on loopback only. Put an authenticating proxy in front before exposing it.

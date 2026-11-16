@@ -117,6 +117,18 @@ export default function ProductionScreen() {
   useEffect(() => {
     if (pendingId) setSelected(pendingId);
   }, [pendingId]);
+  // Deep link: ?block=B3 opens that block on the workbench; the choice is mirrored back into the URL.
+  useEffect(() => {
+    const b = new URLSearchParams(window.location.search).get('block');
+    if (b && /^(B[0-8]|FAST)$/.test(b) && !pendingId) setSelected(b as BlockId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('block') === selected) return;
+    url.searchParams.set('block', selected);
+    window.history.replaceState(window.history.state, '', url);
+  }, [selected]);
 
   // Reading a detail never creates a job; it is re-read whenever the session state changes.
   useEffect(() => {
