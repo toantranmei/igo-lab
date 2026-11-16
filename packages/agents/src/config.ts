@@ -35,6 +35,8 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
     T11: { model: MODELS.sonnet, effort: 'medium' },
     T12: { model: MODELS.opus, effort: 'high' },
     T13: { model: MODELS.sonnet, effort: 'medium' },
+    T14: { model: MODELS.sonnet, effort: 'low' },
+    T15: { model: MODELS.haiku, effort: 'medium' },
   },
   seats: [
     { seat: 'seat-1', model: MODELS.haiku, effort: 'medium' },

@@ -115,29 +115,28 @@ async function allTitles(meta: Meta): Promise<string[]> {
   titleCache.set(meta.dataset, { at: Date.now(), titles });
   return titles;
 }
-const fold = (s: string) => s.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+export async function datasetTitles(link: string) {
+  const meta = await datasetMeta(parseDatasetId(link));
+  return { meta, titles: await allTitles(meta) };
+}
+/** Accent- and case-insensitive form used to match Vietnamese typed with or without diacritics. */
+export const foldTitle = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** Rows whose job title contains the keyword (case-insensitive), one page at a time. */
-export async function searchDataset(link: string, query: string, offset = 0, length = 20) {
-  const dataset = parseDatasetId(link);
-  const q = fold(query);
-  if (q.length < 2) throw new AppError('VALIDATION', 'Nhập từ khóa chức danh (ít nhất 2 ký tự).', 422);
-  const meta = await datasetMeta(dataset);
-  const titles = await allTitles(meta);
-  const matches: number[] = [];
-  for (let i = 0; i < titles.length; i++) if (fold(titles[i]).includes(q)) matches.push(i);
-  const page = matches.slice(Math.max(0, offset), Math.max(0, offset) + Math.min(50, Math.max(1, length)));
-  const ds = `dataset=${encodeURIComponent(dataset)}&config=${encodeURIComponent(meta.config)}&split=${encodeURIComponent(meta.split)}`;
+/** Full JD text of specific rows (the user's selection), read one by one from the public rows endpoint. */
+export async function fetchRows(link: string, rows: number[]): Promise<HfHit[]> {
+  const meta = await datasetMeta(parseDatasetId(link));
+  const want = [...new Set(rows.filter((r) => Number.isInteger(r) && r >= 0))].slice(0, 50);
+  const ds = `dataset=${encodeURIComponent(meta.dataset)}&config=${encodeURIComponent(meta.config)}&split=${encodeURIComponent(meta.split)}`;
   const hits: HfHit[] = [];
-  for (let i = 0; i < page.length; i += 4) {
-    const rows = await Promise.all(page.slice(i, i + 4).map((idx) => get(`${API}/rows?${ds}&offset=${idx}&length=1`)));
-    rows.forEach((res, k) => {
+  for (let i = 0; i < want.length; i += 3) {
+    const got = await Promise.all(want.slice(i, i + 3).map((idx) => get(`${API}/rows?${ds}&offset=${idx}&length=1`)));
+    got.forEach((res, k) => {
       const r = res.rows?.[0];
       if (!r) return;
       const jd = rowToJd(r.row, meta.columns);
-      const row = page[i + k];
-      hits.push({ row, ...jd, chars: Array.from(jd.text).length, source_ref: `https://huggingface.co/datasets/${dataset} · ${meta.split} · dòng ${row}` });
+      const row = want[i + k];
+      hits.push({ row, ...jd, chars: Array.from(jd.text).length, source_ref: `https://huggingface.co/datasets/${meta.dataset} · ${meta.split} · dòng ${row}` });
     });
   }
-  return { dataset, split: meta.split, license: meta.license, dataset_rows: titles.length, total: matches.length, offset, hits };
+  return hits;
 }

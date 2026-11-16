@@ -311,3 +311,19 @@ export const workerStatus = pgTable('worker_status', {
   message: text('message').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+/** One AI-assisted scan of an external dataset for JDs of a role (queued by web, run by the worker). */
+export const sourceSearch = pgTable('source_search', {
+  id: text('id').primaryKey(),
+  workspaceId: text('workspace_id').notNull(),
+  dataset: text('dataset').notNull(),
+  role: text('role').notNull(),
+  /** QUEUED | RUNNING | DONE | FAILED */
+  state: text('state').notNull().default('QUEUED'),
+  progress: text('progress').notNull().default(''),
+  result: jsonb('result'),
+  error: jsonb('error'),
+  lockedAt: ts('locked_at'),
+  createdBy: text('created_by').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});

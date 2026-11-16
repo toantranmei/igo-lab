@@ -18,6 +18,8 @@ interface Info {
   worker: { ok: boolean; message: string };
   stop: { reason: string } | null;
 }
+interface HfRow { row: number; title: string; org: string; text: string; chars: number; source_ref: string }
+interface HfScan { id: string; state: 'QUEUED' | 'RUNNING' | 'DONE' | 'FAILED'; progress: string; role?: string; error: { code: string; message: string } | null; result: { dataset: string; license: string | null; dataset_rows: number; keywords: string[]; candidate_titles: number; candidate_rows: number; judged_titles: number; truncated: boolean; total_rows: number; hits: { row: number; title: string }[] } | null }
 const errText = (e: unknown) => (e instanceof ApiError ? `${e.code}: ${e.message}` : e instanceof Error ? e.message : String(e));
 
 /** Live only: add JDs (paste or upload), preview and confirm the set, add real events, then the pre-run confirmation screen. */
@@ -34,9 +36,11 @@ export default function LiveInputsPanel() {
   const [ack, setAck] = useState(false);
   const [base, setBase] = useState<string>('latest');
   const fileRef = useRef<HTMLInputElement>(null);
-  const [hf, setHf] = useState({ link: '', query: '' });
-  const [hfRes, setHfRes] = useState<{ dataset: string; license: string | null; total: number; dataset_rows: number | null; offset: number; hits: { row: number; title: string; org: string; text: string; chars: number; source_ref: string }[] } | null>(null);
+  const [hf, setHf] = useState({ link: '', role: '' });
+  const [scan, setScan] = useState<HfScan | null>(null);
   const [hfPick, setHfPick] = useState<number[]>([]);
+  const [hfText, setHfText] = useState<Record<number, string>>({});
+  const [hfShown, setHfShown] = useState(50);
 
   const load = useCallback(async () => {
     try {
@@ -72,27 +76,45 @@ export default function LiveInputsPanel() {
       setBusy(false);
     }
   };
-  const hfSearch = async (offset = 0) => {
+  // AI scan of a Hugging Face dataset: queued on the server, run by the worker, polled here.
+  const hfScan = async () => {
     setErr('');
-    setBusy(true);
+    setScan(null);
+    setHfPick([]);
+    setHfText({});
+    setHfShown(50);
     try {
-      const r = await api<NonNullable<typeof hfRes>>('/sources/huggingface/search', { method: 'POST', json: { link: hf.link, query: hf.query || info?.session.role_title, offset } });
-      setHfRes(r);
-      setHfPick([]);
+      const { id } = await api<{ id: string }>('/sources/huggingface/searches', { method: 'POST', json: { link: hf.link, role: hf.role.trim() || info?.session.role_title } });
+      setScan({ id, state: 'QUEUED', progress: 'Đang chờ worker…', result: null, error: null });
     } catch (e) {
       setErr(errText(e));
-    } finally {
-      setBusy(false);
+    }
+  };
+  const scanId = scan?.id;
+  const scanActive = scan?.state === 'QUEUED' || scan?.state === 'RUNNING';
+  useEffect(() => {
+    if (!scanId || !scanActive) return;
+    const t = setInterval(() => void api<HfScan>(`/sources/huggingface/searches/${scanId}`).then(setScan).catch(() => {}), 1500);
+    return () => clearInterval(t);
+  }, [scanId, scanActive]);
+  const hfRoom = Math.max(0, (info?.limits.maxFiles ?? 20) - (kept?.length ?? 0) - drafts.filter((d) => d.ok).length);
+  const hfOpen = async (row: number) => {
+    if (hfText[row] !== undefined) return;
+    setHfText((m) => ({ ...m, [row]: 'Đang tải…' }));
+    try {
+      const [h] = await api<HfRow[]>('/sources/huggingface/rows', { method: 'POST', json: { link: hf.link, rows: [row] } });
+      setHfText((m) => ({ ...m, [row]: h?.text ?? 'Không đọc được dòng này.' }));
+    } catch (e) {
+      setHfText((m) => ({ ...m, [row]: errText(e) }));
     }
   };
   const hfAdd = async () => {
-    if (!hfRes) return;
-    const picked = hfRes.hits.filter((h) => hfPick.includes(h.row));
-    const form = new FormData();
-    form.set('meta', JSON.stringify(picked.map((h) => ({ name: `${h.title}${h.org ? ` — ${h.org}` : ''} (HF #${h.row})`, text: h.text, source_ref: h.source_ref, origin_group: h.org }))));
     setErr('');
     setBusy(true);
     try {
+      const picked = await api<HfRow[]>('/sources/huggingface/rows', { method: 'POST', json: { link: hf.link, rows: hfPick } });
+      const form = new FormData();
+      form.set('meta', JSON.stringify(picked.map((h) => ({ name: `${h.title}${h.org ? ` — ${h.org}` : ''} (HF #${h.row})`, text: h.text, source_ref: h.source_ref, origin_group: h.org }))));
       const r = await api<{ documents: any[] }>(`/sessions/${sessionId}/jd-sets/preview`, { method: 'POST', body: form });
       setDrafts((d) => [...d, ...r.documents.map((x, i) => ({ key: `hf-${Date.now()}-${i}`, name: x.name, text: x.text, source_ref: picked[i]?.source_ref ?? '', origin_group: picked[i]?.org ?? '', blob_sha256: x.blob_sha256, warnings: x.warnings, ok: x.ok, chars: x.chars, segments: x.segments, pages: x.pages, pii: x.pii, existing: !!x.existing }))]);
       setHfPick([]);
@@ -209,31 +231,39 @@ export default function LiveInputsPanel() {
       </div>
 
       <div className="cl-card" id="hf-import">
-        <b>Hoặc lấy JD từ dataset Hugging Face</b>
-        <p className="dim">Dán link dataset công khai, tìm theo chức danh rồi chọn dòng. Máy chủ chỉ đọc dataset từ Hugging Face; từ khóa được so khớp tại máy chủ này, không gửi đi. Lần tìm đầu trên một dataset mất vài giây. Dòng được chọn đi qua bước xem trước như JD dán tay; bạn tự chịu trách nhiệm về giấy phép của dataset.</p>
+        <b>Hoặc để AI quét một dataset tuyển dụng trên Hugging Face</b>
+        <p className="dim">Dán link dataset công khai và nêu vị trí bằng tiếng Việt hoặc tiếng Anh. AI sinh từ khóa chức danh ở cả hai ngôn ngữ, code lọc toàn bộ dataset theo các từ khóa đó, rồi AI duyệt từng chức danh để chỉ giữ tin tuyển đúng vị trí. Chỉ tên vị trí và danh sách chức danh được gửi tới AI ở bước này; nội dung JD chưa được gửi. Bạn tự chịu trách nhiệm về giấy phép của dataset.</p>
         <div className="cl-row">
           <label className="cl-field" style={{ flex: 2 }}>Link dataset<input id="hf-link" value={hf.link} onChange={(e) => setHf({ ...hf, link: e.target.value })} placeholder="https://huggingface.co/datasets/<tác giả>/<tên>" /></label>
-          <label className="cl-field" style={{ flex: 1 }}>Từ khóa chức danh<input id="hf-query" value={hf.query} onChange={(e) => setHf({ ...hf, query: e.target.value })} placeholder={info.session.role_title} /></label>
-          <button id="hf-search" onClick={() => hfSearch(0)} disabled={busy || !hf.link.trim()}>Tìm</button>
+          <label className="cl-field" style={{ flex: 1 }}>Vị trí cần tìm (Việt hoặc Anh)<input id="hf-role" value={hf.role} onChange={(e) => setHf({ ...hf, role: e.target.value })} placeholder={info.session.role_title} /></label>
+          <button id="hf-scan" onClick={hfScan} disabled={busy || scanActive || !hf.link.trim()}>AI quét dataset</button>
         </div>
-        {hfRes ? (
+        {scanActive ? <p role="status" data-testid="hf-progress">⏳ {scan!.progress}</p> : null}
+        {scan?.state === 'FAILED' ? <p className="cl-err" role="alert"><b>{scan.error?.code}</b>: {scan.error?.message}</p> : null}
+        {scan?.result ? (
           <div data-testid="hf-results">
-            <p className="dim">
-              {hfRes.dataset}: {hfRes.total.toLocaleString('vi-VN')} dòng có chức danh khớp{hfRes.dataset_rows ? ` trên ${hfRes.dataset_rows.toLocaleString('vi-VN')} dòng` : ''}{hfRes.hits.length ? ` · đang xem ${hfRes.offset + 1}–${hfRes.offset + hfRes.hits.length}` : ''} · giấy phép: {hfRes.license ? <b className={/nc|unknown|other/i.test(hfRes.license) ? 'cl-warn' : undefined}>{hfRes.license}</b> : <b className="cl-warn">không khai báo</b>}
+            <p>
+              <b>{scan.result.total_rows.toLocaleString('vi-VN')}</b> tin đúng vị trí "{scan.role}" trong {scan.result.dataset_rows.toLocaleString('vi-VN')} dòng của {scan.result.dataset} · giấy phép: {scan.result.license ? <b className={/nc|unknown|other/i.test(scan.result.license) ? 'cl-warn' : undefined}>{scan.result.license}</b> : <b className="cl-warn">không khai báo</b>}
             </p>
-            {hfRes.hits.map((h) => (
-              <details key={h.row} className="record">
+            <p className="dim">
+              Từ khóa AI sinh: {scan.result.keywords.join(' · ')}. Code tìm thấy {scan.result.candidate_rows.toLocaleString('vi-VN')} tin khớp từ khóa ({scan.result.candidate_titles.toLocaleString('vi-VN')} chức danh khác nhau); AI duyệt {scan.result.judged_titles.toLocaleString('vi-VN')} chức danh.
+              {scan.result.truncated ? ` Kết quả bị cắt: chỉ duyệt ${scan.result.judged_titles} chức danh phổ biến nhất và hiện tối đa ${scan.result.hits.length} tin.` : ''}
+            </p>
+            <div className="cl-row">
+              <button id="hf-all" onClick={() => setHfPick(scan.result!.hits.slice(0, hfRoom).map((h) => h.row))} disabled={!scan.result.hits.length || hfRoom === 0}>Chọn tất cả{scan.result.hits.length > hfRoom ? ` (${hfRoom} tin đầu — giới hạn ${info.limits.maxFiles} JD mỗi bộ)` : ''}</button>
+              <button onClick={() => setHfPick([])} disabled={!hfPick.length}>Bỏ chọn</button>
+              <button id="hf-add" className="primary" onClick={hfAdd} disabled={busy || !hfPick.length || hfPick.length > hfRoom}>Đưa {hfPick.length} tin vào xem trước</button>
+              {hfPick.length > hfRoom ? <span className="cl-warn">Chỉ còn chỗ cho {hfRoom} JD.</span> : null}
+            </div>
+            {scan.result.hits.slice(0, hfShown).map((h) => (
+              <details key={h.row} className="record" onToggle={(e) => (e.currentTarget.open ? void hfOpen(h.row) : undefined)}>
                 <summary>
-                  <input type="checkbox" aria-label={`Chọn dòng ${h.row}`} checked={hfPick.includes(h.row)} onClick={(e) => e.stopPropagation()} onChange={(e) => setHfPick((p) => (e.target.checked ? [...p, h.row] : p.filter((x) => x !== h.row)))} /> <b>{h.title}</b>{h.org ? <span className="dim"> — {h.org}</span> : null} <span className="dim">· dòng {h.row} · {h.chars} ký tự</span>
+                  <input type="checkbox" aria-label={`Chọn dòng ${h.row}`} checked={hfPick.includes(h.row)} onClick={(e) => e.stopPropagation()} onChange={(e) => setHfPick((p) => (e.target.checked ? [...p, h.row] : p.filter((x) => x !== h.row)))} /> <b>{h.title}</b> <span className="dim">· dòng {h.row}</span>
                 </summary>
-                <pre className="cl-pre">{h.text}</pre>
+                <pre className="cl-pre">{hfText[h.row] ?? ''}</pre>
               </details>
             ))}
-            <div className="cl-row">
-              <button onClick={() => hfSearch(Math.max(0, hfRes.offset - 20))} disabled={busy || hfRes.offset === 0}>← Trước</button>
-              <button onClick={() => hfSearch(hfRes.offset + 20)} disabled={busy || hfRes.offset + hfRes.hits.length >= hfRes.total}>Sau →</button>
-              <button id="hf-add" className="primary" onClick={hfAdd} disabled={busy || !hfPick.length}>Đưa {hfPick.length} dòng vào xem trước</button>
-            </div>
+            {scan.result.hits.length > hfShown ? <button onClick={() => setHfShown((n) => n + 100)}>Hiện thêm ({scan.result.hits.length - hfShown} tin còn lại)</button> : null}
           </div>
         ) : null}
       </div>

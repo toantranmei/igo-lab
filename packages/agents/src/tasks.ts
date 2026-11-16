@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * The 13 agent tasks. Each is one narrow question with a closed output schema:
+ * The agent tasks (T1–T13 for the B0–B8 line, T14–T15 for scanning external JD datasets). Each is one narrow question with a closed output schema:
  * models pick IDs/enums from the input, never produce numbers, and free text is limited to
  * task statements, competency label/definition, indicator statements and hypothesis text.
  */
@@ -355,7 +355,40 @@ export const T13 = def({
   normalize: (_i, o) => ({ situation: clean(o.situation), action: clean(o.action), expected_outcome: clean(o.expected_outcome), segment_ids: uniq(o.segment_ids).sort() }),
 });
 
-export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13 } as const;
+/** Not part of the B0–B8 line: used when scanning an external dataset for JDs of the session's role. */
+export const T14 = def({
+  id: 'T14.title_keywords',
+  agent: 'A1',
+  block: 'SOURCE',
+  title: 'Sinh từ khóa chức danh song ngữ để lọc dataset tuyển dụng',
+  system: `Nhiệm vụ: người dùng nêu một vị trí công việc bằng tiếng Việt hoặc tiếng Anh. Liệt kê các cụm từ thường xuất hiện TRONG TIÊU ĐỀ tin tuyển dụng của đúng vị trí đó, ở cả tiếng Việt và tiếng Anh (tin tuyển dụng tại Việt Nam dùng lẫn hai ngôn ngữ).
+- Gồm tên gọi chính, bản dịch sang ngôn ngữ còn lại và các tên gọi tương đương phổ biến của CÙNG vị trí.
+- Không thêm vị trí khác dù gần nghề (ví dụ Product Owner không kéo theo Project Manager).
+- Mỗi cụm 3–40 ký tự, chữ thường, không viết tắt dưới 3 ký tự, không thêm cấp bậc (junior, senior, trưởng nhóm) hay tên ngành.
+- Tối đa 12 cụm, cụm đặc trưng nhất đứng trước.`,
+  input: z.strictObject({ role_title: z.string() }),
+  output: z.strictObject({ keywords: z.array(z.string()) }),
+  check: (_i, o) => (o.keywords.some((k) => clean(k).length >= 3) ? [] : ['keywords: cần ít nhất một cụm từ 3 ký tự trở lên']),
+  normalize: (_i, o) => ({ keywords: uniq(o.keywords.map((k) => clean(k).toLowerCase()).filter((k) => k.length >= 3 && k.length <= 40)).slice(0, 12) }),
+});
+
+export const T15 = def({
+  id: 'T15.title_match',
+  agent: 'A1',
+  block: 'SOURCE',
+  title: 'Tiêu đề tin tuyển dụng có đúng vị trí cần tìm không',
+  system: `Nhiệm vụ: cho vị trí "role_title" (tiếng Việt hoặc tiếng Anh) và một danh sách tiêu đề tin tuyển dụng (tiếng Việt, tiếng Anh hoặc trộn). Trả về "match_ids": id của những tiêu đề tuyển ĐÚNG vị trí đó.
+- Tính là đúng: cùng vị trí ở ngôn ngữ khác, tên gọi tương đương, có kèm cấp bậc (junior/senior/lead), ngành, địa điểm, mức lương hay ghi chú.
+- Không tính: vị trí khác chỉ nhắc tới vị trí này (ví dụ "BA làm việc với Product Owner"), vị trí gần nghề nhưng khác vai trò, thực tập sinh hỗ trợ vị trí khác.
+- Tiêu đề gộp hai vị trí bằng dấu "/" hoặc "hoặc" được tính nếu một trong hai là vị trí cần tìm.
+- Khi không chắc, không đưa vào.`,
+  input: z.strictObject({ role_title: z.string(), titles: z.array(z.strictObject({ id: z.string(), title: z.string() })) }),
+  output: z.strictObject({ match_ids: z.array(z.string()) }),
+  check: (i, o) => badRefs('match_ids', o.match_ids, new Set(i.titles.map((x) => x.id))),
+  normalize: (_i, o) => ({ match_ids: uniq(o.match_ids).sort() }),
+});
+
+export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15 } as const;
 export type TaskName = keyof typeof TASKS;
 export type TaskInput<K extends TaskName> = z.infer<(typeof TASKS)[K]['input']>;
 export type TaskOutput<K extends TaskName> = z.infer<(typeof TASKS)[K]['output']>;

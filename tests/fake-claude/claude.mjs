@@ -135,6 +135,12 @@ const handlers = {
   'T13.hypothesis_propose'(i) {
     return { situation: `Giả sử nhóm cần ${low(i.competency.label)} trong một quý.`, action: `Trình bày phương án ${low(i.competency.label)} kèm căn cứ.`, expected_outcome: 'Một tài liệu ghi quyết định và tiêu chí kiểm.', segment_ids: i.competency.segments.slice(0, 1).map((s) => s.id) };
   },
+  'T14.title_keywords'(i) {
+    return { keywords: [low(i.role_title)] };
+  },
+  'T15.title_match'(i) {
+    return { match_ids: i.titles.filter((x) => low(x.title).includes(low(i.role_title))).map((x) => x.id) };
+  },
 };
 const h = handlers[taskId];
 if (!h) {
