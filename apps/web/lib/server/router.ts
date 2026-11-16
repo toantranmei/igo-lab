@@ -4,7 +4,7 @@ import { AppError } from '@cl/contract';
 import { DEFAULT_AGENT_CONFIG, MIN_CLI_VERSION } from '@cl/agents';
 import { commitImport, createExport, exportFramework, listExports, previewImport, type ImportMode } from '@cl/bundle';
 import { DEFAULT_WORKSPACE_ID, getDb, t, verifyEventChain } from '@cl/db';
-import { defaultBlobStore, uploadLimits, SUPPORTED_EXTENSIONS } from '@cl/ingest';
+import { defaultBlobStore, searchDataset, uploadLimits, SUPPORTED_EXTENSIONS } from '@cl/ingest';
 import {
   DEFAULT_POLICY, acknowledge, addUserEvent, assertBlock, confirmJdSet, createRun, createSession, currentRun, getCandidate, getDetail, getSession, getState, getTrace, latestJdSet, listSessions, listUserEvents, liveCatalog, loadDocs, localActor, previewDocuments, removeUserEvent, requirePermission, runPlan, setCursor, startAttempt, workerStatus,
   type DocInput, type Permission,
@@ -43,6 +43,11 @@ on('GET', '/sessions/:id', 'VIEW', async ({ p }) => {
   };
 });
 on('GET', '/limits', 'VIEW', async () => ({ ...uploadLimits(), extensions: SUPPORTED_EXTENSIONS }));
+// Reads a public Hugging Face dataset; the rows the user picks then go through the normal preview below.
+on('POST', '/sources/huggingface/search', 'OPERATE', async ({ body }) => {
+  const b = await body();
+  return searchDataset(String(b.link ?? ''), String(b.query ?? ''), Number(b.offset ?? 0), 20);
+});
 on('POST', '/sessions/:id/jd-sets/preview', 'OPERATE', async ({ req, p }) => {
   await getSession(db(), WS, p.id);
   const form = await req.formData();

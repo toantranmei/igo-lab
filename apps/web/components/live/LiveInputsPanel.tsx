@@ -34,6 +34,9 @@ export default function LiveInputsPanel() {
   const [ack, setAck] = useState(false);
   const [base, setBase] = useState<string>('latest');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [hf, setHf] = useState({ link: '', query: '' });
+  const [hfRes, setHfRes] = useState<{ dataset: string; license: string | null; total: number; dataset_rows: number | null; offset: number; hits: { row: number; title: string; org: string; text: string; chars: number; source_ref: string }[] } | null>(null);
+  const [hfPick, setHfPick] = useState<number[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +66,36 @@ export default function LiveInputsPanel() {
       ]);
       setPaste({ name: '', text: '', source_ref: '', origin_group: '' });
       if (fileRef.current) fileRef.current.value = '';
+    } catch (e) {
+      setErr(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const hfSearch = async (offset = 0) => {
+    setErr('');
+    setBusy(true);
+    try {
+      const r = await api<NonNullable<typeof hfRes>>('/sources/huggingface/search', { method: 'POST', json: { link: hf.link, query: hf.query || info?.session.role_title, offset } });
+      setHfRes(r);
+      setHfPick([]);
+    } catch (e) {
+      setErr(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const hfAdd = async () => {
+    if (!hfRes) return;
+    const picked = hfRes.hits.filter((h) => hfPick.includes(h.row));
+    const form = new FormData();
+    form.set('meta', JSON.stringify(picked.map((h) => ({ name: `${h.title}${h.org ? ` — ${h.org}` : ''} (HF #${h.row})`, text: h.text, source_ref: h.source_ref, origin_group: h.org }))));
+    setErr('');
+    setBusy(true);
+    try {
+      const r = await api<{ documents: any[] }>(`/sessions/${sessionId}/jd-sets/preview`, { method: 'POST', body: form });
+      setDrafts((d) => [...d, ...r.documents.map((x, i) => ({ key: `hf-${Date.now()}-${i}`, name: x.name, text: x.text, source_ref: picked[i]?.source_ref ?? '', origin_group: picked[i]?.org ?? '', blob_sha256: x.blob_sha256, warnings: x.warnings, ok: x.ok, chars: x.chars, segments: x.segments, pages: x.pages, pii: x.pii, existing: !!x.existing }))]);
+      setHfPick([]);
     } catch (e) {
       setErr(errText(e));
     } finally {
@@ -173,6 +206,36 @@ export default function LiveInputsPanel() {
           </p>
           <button id="jd-preview" onClick={preview} disabled={busy}>Xem trước</button>
         </div>
+      </div>
+
+      <div className="cl-card" id="hf-import">
+        <b>Hoặc lấy JD từ dataset Hugging Face</b>
+        <p className="dim">Dán link dataset công khai, tìm theo chức danh rồi chọn dòng. Máy chủ chỉ đọc dataset từ Hugging Face; từ khóa được so khớp tại máy chủ này, không gửi đi. Lần tìm đầu trên một dataset mất vài giây. Dòng được chọn đi qua bước xem trước như JD dán tay; bạn tự chịu trách nhiệm về giấy phép của dataset.</p>
+        <div className="cl-row">
+          <label className="cl-field" style={{ flex: 2 }}>Link dataset<input id="hf-link" value={hf.link} onChange={(e) => setHf({ ...hf, link: e.target.value })} placeholder="https://huggingface.co/datasets/<tác giả>/<tên>" /></label>
+          <label className="cl-field" style={{ flex: 1 }}>Từ khóa chức danh<input id="hf-query" value={hf.query} onChange={(e) => setHf({ ...hf, query: e.target.value })} placeholder={info.session.role_title} /></label>
+          <button id="hf-search" onClick={() => hfSearch(0)} disabled={busy || !hf.link.trim()}>Tìm</button>
+        </div>
+        {hfRes ? (
+          <div data-testid="hf-results">
+            <p className="dim">
+              {hfRes.dataset}: {hfRes.total.toLocaleString('vi-VN')} dòng có chức danh khớp{hfRes.dataset_rows ? ` trên ${hfRes.dataset_rows.toLocaleString('vi-VN')} dòng` : ''}{hfRes.hits.length ? ` · đang xem ${hfRes.offset + 1}–${hfRes.offset + hfRes.hits.length}` : ''} · giấy phép: {hfRes.license ? <b className={/nc|unknown|other/i.test(hfRes.license) ? 'cl-warn' : undefined}>{hfRes.license}</b> : <b className="cl-warn">không khai báo</b>}
+            </p>
+            {hfRes.hits.map((h) => (
+              <details key={h.row} className="record">
+                <summary>
+                  <input type="checkbox" aria-label={`Chọn dòng ${h.row}`} checked={hfPick.includes(h.row)} onClick={(e) => e.stopPropagation()} onChange={(e) => setHfPick((p) => (e.target.checked ? [...p, h.row] : p.filter((x) => x !== h.row)))} /> <b>{h.title}</b>{h.org ? <span className="dim"> — {h.org}</span> : null} <span className="dim">· dòng {h.row} · {h.chars} ký tự</span>
+                </summary>
+                <pre className="cl-pre">{h.text}</pre>
+              </details>
+            ))}
+            <div className="cl-row">
+              <button onClick={() => hfSearch(Math.max(0, hfRes.offset - 20))} disabled={busy || hfRes.offset === 0}>← Trước</button>
+              <button onClick={() => hfSearch(hfRes.offset + 20)} disabled={busy || hfRes.offset + hfRes.hits.length >= hfRes.total}>Sau →</button>
+              <button id="hf-add" className="primary" onClick={hfAdd} disabled={busy || !hfPick.length}>Đưa {hfPick.length} dòng vào xem trước</button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {drafts.map((d) => (

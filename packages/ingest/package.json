@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@cl/contract": "workspace:*",
+    "hyparquet": "^1.33.0",
+    "hyparquet-compressors": "^1.1.3",
     "mammoth": "^1.9.0",
     "unpdf": "^1.0.0"
   }
