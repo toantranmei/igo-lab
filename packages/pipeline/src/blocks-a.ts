@@ -37,6 +37,31 @@ export function segIndex(docs: LoadedDoc[]) {
 const docRecord = (d: LoadedDoc) => ({ tên: d.original_name, nguồn: d.source_ref, 'nhóm nguồn': d.origin_group ?? 'chưa xác định', 'số đoạn': d.segments.length, hash: d.content_sha256.slice(0, 12), 'trích đầu': short(d.text, 220) });
 const taskDoc = (d: LoadedDoc) => ({ id: d.ref, segments: d.segments.map((s) => ({ id: s.id, text: s.text })) });
 
+/**
+ * Partition tasks (T3/T5) for sets too large for one call. Up to PART_ONE items go in a single call, as before.
+ * Beyond that: sort by text so near-identical items sit together, partition each chunk, then partition the
+ * chunk representatives once more to merge groups that were split across chunks.
+ */
+const PART_ONE = 100;
+const PART_REDUCE = 250;
+type Part = { member_ids: string[]; canonical_member_id: string };
+export async function partitionBatched<T extends { id: string }>(items: T[], text: (t: T) => string, call: (part: T[]) => Promise<{ output: { groups: Part[] }; source: TraceSource }>): Promise<{ groups: Part[]; source: TraceSource; calls: number }> {
+  if (items.length <= PART_ONE) {
+    const m = await call(items);
+    return { groups: m.output.groups, source: m.source, calls: 1 };
+  }
+  const chunk = (xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
+  const sorted = [...items].sort((a, b) => norm(text(a)).localeCompare(norm(text(b))) || a.id.localeCompare(b.id));
+  const first = await Promise.all(chunk(sorted, PART_ONE).map(call));
+  const level1 = first.flatMap((m) => m.output.groups);
+  const byId = new Map(items.map((x) => [x.id, x]));
+  const reps = level1.map((g) => byId.get(g.canonical_member_id)!).sort((a, b) => norm(text(a)).localeCompare(norm(text(b))) || a.id.localeCompare(b.id));
+  const second = await Promise.all(chunk(reps, PART_REDUCE).map((part) => (part.length > 1 ? call(part) : Promise.resolve({ output: { groups: part.map((x) => ({ member_ids: [x.id], canonical_member_id: x.id })) }, source: first[0].source }))));
+  const membersOf = new Map(level1.map((g) => [g.canonical_member_id, g.member_ids]));
+  const groups = second.flatMap((m) => m.output.groups).map((g) => ({ canonical_member_id: g.canonical_member_id, member_ids: g.member_ids.flatMap((id) => membersOf.get(id) ?? [id]).sort() }));
+  return { groups: groups.sort((a, b) => a.member_ids[0].localeCompare(b.member_ids[0])), source: first[0].source, calls: first.length + second.length };
+}
+
 /** Every task the B0–B8 line can call must have a model assigned in the locked snapshot. */
 const LINE_TASKS = [...new Set(Object.values(BLOCK_TASKS).flat())];
 
@@ -188,8 +213,8 @@ export async function runB2(ctx: BlockCtx): Promise<BlockResult> {
   let groups = raw.map((r) => ({ member_ids: [r.id], canonical_member_id: r.id }));
   let mergeSource: TraceSource = 'CODE';
   if (raw.length > 1) {
-    const m = await ag.run('T3', { role_title: s.session.role_title, tasks: raw.map((r) => ({ id: r.id, statement: r.statement })) });
-    groups = m.output.groups;
+    const m = await partitionBatched(raw, (r) => r.statement, (part) => ag.run('T3', { role_title: s.session.role_title, tasks: part.map((r) => ({ id: r.id, statement: r.statement })) }));
+    groups = m.groups;
     mergeSource = m.source;
   }
   const byId = new Map(raw.map((r) => [r.id, r]));
@@ -310,8 +335,8 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
   let clusters = raw.map((r) => ({ member_ids: [r.id], canonical_member_id: r.id }));
   let clusterSource: TraceSource = 'CODE';
   if (raw.length > 1) {
-    const m = await ag.run('T5', { candidates: raw.map((r) => ({ id: r.id, label: r.label, definition: r.definition })) });
-    clusters = m.output.groups;
+    const m = await partitionBatched(raw, (r) => r.label, (part) => ag.run('T5', { candidates: part.map((r) => ({ id: r.id, label: r.label, definition: r.definition })) }));
+    clusters = m.groups;
     clusterSource = m.source;
   }
   const byId = new Map(raw.map((r) => [r.id, r]));

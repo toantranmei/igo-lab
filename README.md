@@ -69,9 +69,9 @@ Biến trong `.env.example`:
 | `CLAUDE_CODE_OAUTH_TOKEN` | rỗng | Token từ `claude setup-token`, chỉ cần khi worker chạy trong Docker |
 | `AGENT_TIMEOUT_MS` | `180000` | Timeout một lời gọi CLI; quá hạn thì kill tiến trình |
 | `AGENT_MAX_PARALLEL` | `3` | Số tiến trình CLI chạy song song tối đa |
-| `AGENT_MAX_CALLS_PER_RUN` | `400` | Ngân sách lời gọi thật (không tính cache) của một lượt |
+| `AGENT_MAX_CALLS_PER_RUN` | `3000` | Ngân sách lời gọi thật (không tính cache) của một lượt |
 | `AGENT_MAX_INPUT_CHARS` | `120000` | Độ dài tối đa input chính tắc của một tác vụ |
-| `MAX_FILES` | `20` | Số tài liệu tối đa mỗi lần tải |
+| `MAX_FILES` | `200` | Số JD tối đa của một bộ JD (và mỗi lần tải) |
 | `MAX_FILE_MB` | `10` | Dung lượng tối đa mỗi file |
 | `MAX_CHARS_PER_DOC` | `60000` | Số ký tự tối đa mỗi tài liệu |
 

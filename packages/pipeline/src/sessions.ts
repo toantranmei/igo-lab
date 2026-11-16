@@ -161,9 +161,9 @@ export function runPlan(jdCount: number, config: AgentConfig = DEFAULT_AGENT_CON
     tasks: [
       row('T1', 'mỗi JD', String(jdCount)),
       row('T2', 'mỗi JD hợp lệ', `≤ ${jdCount}`),
-      row('T3', '1 lần/lượt', '1', 'bỏ qua nếu chỉ có 1 nhiệm vụ'),
+      row('T3', '1 lần/lượt; chia lô 100 khi nhiều hơn', '1+', 'bỏ qua nếu chỉ có 1 nhiệm vụ'),
       row('T4', 'mỗi JD hợp lệ', `≤ ${jdCount}`),
-      row('T5', '1 lần/lượt', '1', 'bỏ qua nếu chỉ có 1 ứng viên'),
+      row('T5', '1 lần/lượt; chia lô 100 khi nhiều hơn', '1+', 'bỏ qua nếu chỉ có 1 ứng viên'),
       row('T6', 'mỗi nhóm ứng viên có năng lực nền gần giống', 'K', 'bỏ qua khi từ điển nền rỗng'),
       row('T7', 'mỗi sự kiện thật', String(eventCount), eventCount ? undefined : 'bỏ qua: không có sự kiện thật'),
       row('T13', 'mỗi nhóm chưa có sự kiện thật', 'G'),

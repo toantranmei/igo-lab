@@ -9,7 +9,7 @@ test('A04 · Thêm JD bằng dán và file, kiểm lỗi parse/trùng/nguồn, s
   await page.locator('#s-create').click();
   await expect(page).toHaveURL(/\/s\/ses_[a-z0-9]+\/inputs/);
   const sid = page.url().match(/\/s\/([^/]+)\//)![1];
-  await expect(page.getByTestId('upload-limits')).toContainText('20');
+  await expect(page.getByTestId('upload-limits')).toContainText('200');
   await expect(page.getByTestId('upload-limits')).toContainText('10 MB');
   await expect(page.locator('#run-create')).toBeDisabled();
 

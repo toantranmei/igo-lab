@@ -9,7 +9,7 @@ export interface UploadLimits {
   maxCharsPerDoc: number;
 }
 export function uploadLimits(env: Record<string, string | undefined> = process.env): UploadLimits {
-  return { maxFiles: Number(env.MAX_FILES ?? 20), maxFileMb: Number(env.MAX_FILE_MB ?? 10), maxCharsPerDoc: Number(env.MAX_CHARS_PER_DOC ?? 60000) };
+  return { maxFiles: Number(env.MAX_FILES ?? 200), maxFileMb: Number(env.MAX_FILE_MB ?? 10), maxCharsPerDoc: Number(env.MAX_CHARS_PER_DOC ?? 60000) };
 }
 
 export type IngestWarningCode = 'EMPTY' | 'ENCODING' | 'PDF_NO_TEXT' | 'TOO_LONG' | 'UNSUPPORTED' | 'PARSE_ERROR' | 'DUPLICATE_BYTES' | 'DUPLICATE_TEXT' | 'NEAR_DUPLICATE' | 'PII' | 'MISSING_FIELD' | 'TOO_LARGE';

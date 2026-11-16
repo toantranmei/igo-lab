@@ -67,7 +67,7 @@ export async function runTask<K extends TaskName>(ctx: TaskContext, name: K, raw
   }
 
   if (ctx.runId) {
-    const limit = ctx.maxCallsPerRun ?? Number(process.env.AGENT_MAX_CALLS_PER_RUN ?? 400);
+    const limit = ctx.maxCallsPerRun ?? Number(process.env.AGENT_MAX_CALLS_PER_RUN ?? 3000);
     const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(t.agentCall).where(and(eq(t.agentCall.runId, ctx.runId), eq(t.agentCall.cacheHit, false)));
     if (n >= limit) throw new AppError('BUDGET_EXCEEDED', `Lượt đã dùng ${n} lời gọi agent, đạt ngân sách ${limit}.`, 429, { limit }, ['RAISE_BUDGET', 'NEW_RUN']);
   }
