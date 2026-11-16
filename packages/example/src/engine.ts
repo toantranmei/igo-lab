@@ -1,0 +1,511 @@
+/**
+ * Deterministic demo engine for the Default Example.
+ * Ported from docs/reference/site-v8/engine.js — logic and wording kept as-is.
+ */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x));
+const freeze = <T>(x: T): T => {
+  if (x && typeof x === 'object') {
+    Object.values(x as any).forEach(freeze);
+    Object.freeze(x);
+  }
+  return x;
+};
+
+export const defs: [string, string, string][] = [
+  ['C01', 'Tầm nhìn sản phẩm', 'vision'],
+  ['C02', 'Ưu tiên backlog', 'priority'],
+  ['C03', 'Khám phá nhu cầu', 'discovery'],
+  ['C04', 'Đo lường giá trị', 'metrics'],
+  ['C05', 'Quản trị stakeholder', 'stakeholder'],
+  ['C06', 'Quản lý vòng giao hàng', 'delivery'],
+  ['C07', 'Quản trị AI và dữ liệu', 'governance'],
+];
+
+export interface SeedTask {
+  id: string;
+  name: string;
+  concept: string;
+  weight: number;
+}
+export interface SeedJD {
+  id: string;
+  origin: string;
+  industry: string;
+  role: string;
+  synthetic: true;
+  source: string;
+  skills: string[];
+  skillStatements: { concept: string; text: string }[];
+  text: string;
+}
+export interface SeedEvent {
+  id: string;
+  concept: string;
+  source: string;
+  type: string;
+  ratings: number[];
+  ratingBasis: string;
+  situation: string;
+  action: string;
+  outcome: string;
+}
+export interface SeedData {
+  label: string;
+  jds: SeedJD[];
+  tasks: SeedTask[];
+  events: SeedEvent[];
+}
+
+const taskNames = [
+  'Định hướng sản phẩm',
+  'Ưu tiên giá trị',
+  'Kiểm chứng nhu cầu',
+  'Đo kết quả sản phẩm',
+  'Thống nhất stakeholder',
+  'Đưa giá trị đến người dùng',
+  'Kiểm soát rủi ro AI',
+];
+const taskWeights = [3, 3, 3, 2, 2, 2, 4];
+export const tasks: SeedTask[] = defs.map((d, i) => ({ id: 'T' + (i + 1), name: taskNames[i], concept: d[2], weight: taskWeights[i] }));
+
+export const clauses: Record<string, string> = {
+  vision: 'Chuyển mục tiêu kinh doanh thành mục tiêu sản phẩm cho nhóm khách hàng cụ thể.',
+  priority: 'Sắp xếp backlog theo giá trị kỳ vọng, chi phí trì hoãn và rủi ro; ghi rõ đánh đổi.',
+  discovery: 'Lập giả thuyết nhu cầu, chọn khách hàng phỏng vấn và thiết kế phép thử để bác bỏ giả thuyết.',
+  metrics: 'Chọn metric kết quả, ghi baseline trước thử nghiệm và đọc dữ liệu sau phát hành.',
+  stakeholder: 'Tổng hợp nhu cầu xung đột của kinh doanh và kỹ thuật, chốt quyết định trong decision log.',
+  delivery: 'Làm rõ tiêu chí chấp nhận, thống nhất phạm vi sprint và kiểm tra giá trị bàn giao.',
+  governance: 'Phân loại dữ liệu tính năng AI, kiểm quyền truy cập và đặt điều kiện dừng thử nghiệm.',
+};
+
+const makeJD = (i: number, round: number): SeedJD => {
+  const skills =
+    i === 0
+      ? defs.slice(0, 6).map((d) => d[2])
+      : i % 3 === 0
+        ? ['vision', 'priority', 'metrics']
+        : i % 3 === 1
+          ? ['discovery', 'stakeholder', 'delivery']
+          : ['priority', 'metrics', 'delivery'];
+  return {
+    id: `JD-${round}-${i + 1}`,
+    origin: `seed-company-${i + 1}`,
+    industry: i % 2 ? 'Fintech' : 'SaaS',
+    role: 'Product Owner',
+    synthetic: true,
+    source: `seed://round-${round}/jd/${i + 1}`,
+    skills,
+    skillStatements: skills.map((concept) => ({ concept, text: clauses[concept] })),
+    text: skills.map((c) => clauses[c]).join(' '),
+  };
+};
+
+const situations = [
+  'Doanh nghiệp muốn tăng doanh thu nhưng chưa chọn phân khúc ưu tiên.',
+  'Ba bên yêu cầu ba hạng mục trong khi sprint chỉ đủ nguồn lực cho một.',
+  'Nhóm tin rằng khách hàng cần tính năng mới nhưng chưa có bằng chứng nhu cầu.',
+  'Tính năng đã phát hành nhưng nhóm chỉ báo cáo số lượt truy cập.',
+  'Kinh doanh muốn tăng tốc còn kỹ thuật yêu cầu xử lý nợ hệ thống.',
+  'Một hạng mục hoàn thành về kỹ thuật nhưng chưa có tiêu chí chấp nhận.',
+  'Một tính năng AI dự định dùng dữ liệu có thông tin khách hàng.',
+];
+const workProducts = [
+  'bản mục tiêu sản phẩm và giả thuyết giá trị',
+  'backlog có thứ tự và căn cứ đánh đổi',
+  'kế hoạch thử nhu cầu và tiêu chí bác bỏ',
+  'bảng metric kết quả và baseline',
+  'decision log ghi quyết định và bên liên quan',
+  'hạng mục có tiêu chí chấp nhận kiểm được',
+  'danh sách quyền truy cập và điều kiện dừng AI',
+];
+
+export function seed(round: number): SeedData {
+  const jds = Array.from({ length: round === 1 ? 8 : 11 }, (_, i) => makeJD(i, round));
+  if (round === 2)
+    jds.slice(-3).forEach((j) => {
+      j.skills.push('governance');
+      j.skillStatements.push({ concept: 'governance', text: clauses.governance });
+      j.text += ' ' + clauses.governance;
+    });
+  return {
+    label: 'DỮ LIỆU TỔNG HỢP · không phải khảo sát thực tế',
+    jds,
+    tasks: clone(tasks.slice(0, round === 1 ? 6 : 7)),
+    events: defs.slice(0, round === 1 ? 6 : 7).map((d, i) => ({
+      id: `EV-${round}-${i + 1}`,
+      concept: d[2],
+      source: `seed://round-${round}/event/${i + 1}`,
+      type: 'synthetic_case',
+      ratings: round === 2 && d[2] === 'metrics' ? [4, 4, 3] : [3, 3, 3],
+      ratingBasis:
+        round === 2 && d[2] === 'metrics'
+          ? 'Giả định seed: hai phiếu yêu cầu thiết kế đối chiếu và đánh giá tác động (4); một phiếu chỉ yêu cầu đối chiếu baseline (3).'
+          : 'Giả định seed: cả ba phiếu gán mức thực hiện độc lập trong tình huống của vai trò (3). Không phải số được suy tự động từ mô tả.',
+      situation: situations[i],
+      action: clauses[d[2]],
+      outcome:
+        round === 2 && d[2] === 'metrics'
+          ? 'Seed có baseline và đề xuất nhóm đối chiếu; bổ sung yêu cầu kiểm tra tác động.'
+          : 'Sản phẩm công việc seed: ' + workProducts[i] + '. Chưa có kết quả hiệu suất thực tế.',
+    })),
+  };
+}
+
+export interface ExampleDictionary {
+  version: string;
+  W: any[];
+  C: any[];
+  R: any[];
+  V: any[];
+  G: any[];
+  lessons: any[];
+}
+export const initial = (): ExampleDictionary => ({
+  version: '0.9',
+  W: [],
+  C: defs.slice(0, 2).map((d) => ({ id: d[0], name: d[1], concept: d[2], version: 1, indicators: [] })),
+  R: [],
+  V: [],
+  G: [],
+  lessons: [],
+});
+
+export const indicatorText: Record<string, string> = {
+  vision: 'Chuyển mục tiêu kinh doanh thành mục tiêu sản phẩm, nêu nhóm người dùng và giả thuyết giá trị cần kiểm chứng.',
+  priority: 'Sắp thứ tự backlog theo tác động kỳ vọng, chi phí trì hoãn và rủi ro; ghi căn cứ cho từng lựa chọn.',
+  discovery: 'Thiết kế phép thử giả thuyết nhu cầu, đặt tiêu chí bác bỏ trước và tổng hợp quan sát để quyết định bước tiếp theo.',
+  metrics: 'Chọn metric kết quả cho một mục tiêu sản phẩm và đối chiếu kết quả với baseline đã ghi trước.',
+  stakeholder: 'Ghi nhận nhu cầu xung đột, giải thích đánh đổi và chốt quyết định với bên liên quan trong decision log.',
+  delivery: 'Làm rõ tiêu chí chấp nhận của hạng mục backlog và đối chiếu sản phẩm bàn giao với tiêu chí đó.',
+  governance: 'Phân loại dữ liệu đầu vào của tính năng AI, xác định quyền truy cập và điều kiện dừng trước thử nghiệm.',
+};
+export const metricsLevel4Indicator = 'Xác định metric kết quả, lập baseline và đánh giá tác động với nhóm đối chiếu khi phù hợp.';
+
+export type FaultKind = 'none' | 'missing_source' | 'forbidden_write';
+export interface Rule {
+  name: string;
+  actual: any;
+  expect: any;
+  pass: boolean;
+}
+export interface LogRecord {
+  seq: number;
+  run: number;
+  step: string;
+  type: string;
+  time: string;
+  payload: any;
+}
+export interface GuidePending {
+  id: string;
+  round: number;
+  seq: number;
+  committed: boolean;
+  cursor: number;
+}
+
+export class Lab {
+  dictionary: ExampleDictionary;
+  history: any[];
+  round = 1;
+  position = 0;
+  outputs: Record<string, any> = {};
+  logs: LogRecord[] = [];
+  halted = false;
+  fault: FaultKind = 'none';
+  fast: any = null;
+  completed = false;
+  audit: any = null;
+  config: any;
+  data!: SeedData;
+  startDictionary!: ExampleDictionary;
+  guide?: { pending: GuidePending | null; acknowledged: GuidePending[] };
+
+  constructor() {
+    this.dictionary = initial();
+    this.history = [];
+    this.reset(1);
+  }
+
+  reset(round: number): this {
+    this.round = round;
+    this.position = 0;
+    this.outputs = {};
+    this.logs = [];
+    this.halted = false;
+    this.fault = 'none';
+    this.fast = null;
+    this.completed = false;
+    this.audit = null;
+    this.config = freeze({
+      version: 'sim-policy-1.0',
+      minJD: 6,
+      minCoverage: 1,
+      minAgreement: 0.7,
+      writeCoreStep: 'B8',
+      AIOnly: true,
+      approvedLessons: this.dictionary.lessons.filter((l) => l.safe).map((l) => l.id),
+    });
+    this.data = freeze(seed(round));
+    this.startDictionary = clone(this.dictionary);
+    return this;
+  }
+
+  log(step: string, type: string, payload: any) {
+    this.logs.push({ seq: this.logs.length + 1, run: this.round, step, type, time: new Date().toISOString(), payload: clone(payload) });
+  }
+
+  step(): { id: string; input: any; output: any; pass: boolean } | null {
+    if (this.halted || this.completed) return null;
+    const id = 'B' + this.position;
+    const input = this.position ? clone(this.outputs['B' + (this.position - 1)]) : { config: this.config, dictionary: this.startDictionary };
+    let out: any;
+    let metrics: any = {};
+    const rules: Rule[] = [];
+    const check = (name: string, actual: any, expect: any, pass: boolean) => rules.push({ name, actual, expect, pass });
+
+    if (id === 'B0') {
+      out = {
+        role: 'Product Owner',
+        branches: ['quick', 'full'],
+        permittedUse: 'Mô phỏng phát triển; không tuyển dụng/chấm bậc cá nhân',
+        policy: this.config,
+        sourceClass: 'synthetic',
+        dictionaryVersion: this.dictionary.version,
+      };
+      check('Cấu hình đầu vào có phiên bản', out.policy.version, 'có', true);
+      check('Toàn bộ B do AI', out.policy.AIOnly, true, true);
+    }
+    if (id === 'B1') {
+      const jds = clone(this.data.jds);
+      if (this.fault === 'missing_source') jds[0].source = '';
+      out = { jds, uniqueOrigins: new Set(jds.map((j) => j.origin)).size };
+      metrics = { valid: jds.filter((j) => j.source).length, total: jds.length };
+      check('Số JD hợp lệ', metrics.valid, '≥ ' + this.config.minJD, metrics.valid >= this.config.minJD);
+      check('Nguồn truy được', metrics.valid / jds.length, 1, metrics.valid === jds.length);
+    }
+    if (id === 'B2') {
+      out = {
+        occupation: 'Product Owner',
+        industry: ['SaaS', 'Fintech'],
+        mapping: { internal: 'W-PO', externalStatus: 'chưa xác minh chuẩn ngoài' },
+        tasks: clone(this.data.tasks),
+      };
+      check('Nhiệm vụ seed có định danh', out.tasks.length, '> 0', out.tasks.length > 0);
+      check('Không khẳng định mã chuẩn ngoài chưa kiểm', out.mapping.externalStatus, 'chưa xác minh', true);
+    }
+    if (id === 'B3') {
+      const b1jds: SeedJD[] = this.outputs.B1.jds;
+      const concepts = [...new Set(b1jds.flatMap((j) => j.skills))];
+      const candidates: any[] = concepts.map((c) => {
+        const d = defs.find((x) => x[2] === c)!;
+        return {
+          id: d[0],
+          name: d[1],
+          concept: c,
+          evidence: b1jds.filter((j) => j.skills.includes(c)).map((j) => j.id),
+          reused: this.dictionary.C.some((x) => x.id === d[0]),
+        };
+      });
+      if (!this.config.approvedLessons.includes('LL-001'))
+        candidates.push({ ...clone(candidates.find((c) => c.concept === 'stakeholder')), name: 'Giao tiếp với stakeholder', alias: true });
+      out = { candidates, earlyDedup: this.config.approvedLessons.includes('LL-001') };
+      metrics = {
+        TP: concepts.length,
+        FP: candidates.length - concepts.length,
+        FN: 0,
+        precision: concepts.length / candidates.length,
+        recall: 1,
+      };
+      check('Mọi ứng viên có căn cứ seed', candidates.filter((c) => c.evidence.length).length, candidates.length, true);
+      check('Recall trên đáp án seed', metrics.recall, 1, true);
+    }
+    if (id === 'B4') {
+      out = {
+        events: clone(this.data.events),
+        hypotheses: [],
+        evidenceClass: 'synthetic_only',
+        externalValidity: false,
+        pilotQuestions: this.dictionary.V.filter((e) => e.kind === 'pilot').flatMap((e) => e.notes),
+      };
+      check('Giữ nhãn tổng hợp cho mọi sự kiện', out.events.every((e: SeedEvent) => e.type === 'synthetic_case'), true, true);
+      metrics = { sourceCoverage: out.events.filter((e: SeedEvent) => e.source).length / out.events.length };
+      check('Truy nguồn seed', metrics.sourceCoverage, 1, metrics.sourceCoverage === 1);
+    }
+    if (id === 'B5') {
+      const b4events: SeedEvent[] = this.outputs.B4.events;
+      const unique = [...new Map<string, any>(this.outputs.B3.candidates.map((c: any) => [c.concept, c])).values()];
+      const selected = unique.map((c) => {
+        const ratings = b4events.find((e) => e.concept === c.concept)!.ratings;
+        return {
+          ...c,
+          alias: false,
+          name: defs.find((d) => d[0] === c.id)![1],
+          level: [...ratings].sort((a, b) => a - b)[1],
+          ratings,
+        };
+      });
+      const covered = this.data.tasks.filter((t) => selected.some((c) => c.concept === t.concept));
+      const coverage = covered.reduce((s, t) => s + t.weight, 0) / this.data.tasks.reduce((s, t) => s + t.weight, 0);
+      out = { selected, coverage, removedLate: this.outputs.B3.candidates.length - selected.length };
+      metrics = { coverage, selected: selected.length };
+      check('Bao phủ nhiệm vụ trọng yếu', coverage, this.config.minCoverage, coverage >= this.config.minCoverage);
+      check('Khái niệm không trùng', new Set(selected.map((c) => c.concept)).size, selected.length, true);
+    }
+    if (id === 'B6') {
+      out = {
+        cards: this.outputs.B5.selected.map((c: any) => {
+          const upgraded = c.level >= 4 && c.concept === 'metrics';
+          return {
+            ...c,
+            definition: 'Năng lực thực hiện ' + c.name.toLowerCase() + ' trong bối cảnh sản phẩm.',
+            indicator: upgraded ? metricsLevel4Indicator : indicatorText[c.concept],
+            votes: [c.id, c.id, c.id],
+            agreement: 1,
+            version: upgraded ? 2 : 1,
+          };
+        }),
+        measurement: 'Các phiếu AI là seed; đồng thuận không chứng minh đúng ngoài thực tế.',
+      };
+      metrics = { minAgreement: 1 };
+      check('Đồng thuận gán nhãn trên seed', 1, '≥ ' + this.config.minAgreement, true);
+      check('Chỉ ghi vùng bản nháp', this.fault === 'forbidden_write' ? 'core' : 'draft', 'draft', this.fault !== 'forbidden_write');
+    }
+    if (id === 'B7') {
+      out = {
+        reviewers: ['AI-Reviewer-1', 'AI-Reviewer-2', 'AI-Reviewer-3'],
+        coverage: this.outputs.B5.coverage,
+        requiredGatesPass: Object.values(this.outputs).every((o: any) => o._gate),
+        decision: 'Đạt các phép kiểm mô phỏng',
+        externalValidation: 'Chưa có bằng chứng người làm nghề hoặc KPI thực',
+      };
+      check('Mọi cổng trước đạt', out.requiredGatesPass, true, out.requiredGatesPass);
+      check('Bao phủ nhiệm vụ', out.coverage, 1, out.coverage === 1);
+    }
+    if (id === 'B8') {
+      const late = this.outputs.B5.removedLate;
+      this.audit = {
+        scope: 'B0–B8; AI, công cụ, cổng, dữ liệu',
+        findings: late
+          ? [
+              {
+                id: 'F-001',
+                severity: 'Medium',
+                type: 'control_weakness',
+                text: `B3 để lọt ${late} ứng viên trùng khái niệm; B5 mới khử trùng.`,
+                evidence: ['B3.candidates', 'B5.removedLate'],
+                lesson: 'LL-001',
+              },
+            ]
+          : [],
+        limitations: ['Toàn bộ dữ liệu là seed tổng hợp; chưa có giá trị kiểm chứng ngoài thực tế.'],
+        checks: ['Truy nguồn seed', 'Không nâng loại bằng chứng', 'Quyền ghi lõi', 'Lịch sử cổng'],
+      };
+      if (late && !this.dictionary.lessons.some((l) => l.id === 'LL-001'))
+        this.dictionary.lessons.push({
+          id: 'LL-001',
+          text: 'Khử trùng theo concept ID ở B3 trước khi chuyển B4/B5.',
+          safe: false,
+          owner: 'AU',
+          control: 'canonical-dedup',
+          test: 'Đưa hai tên khác nhau cùng concept → chỉ một ứng viên.',
+        });
+      const before = clone(this.dictionary);
+      const changes: any[] = [];
+      for (const c of this.outputs.B6.cards) {
+        const old = this.dictionary.C.find((x) => x.id === c.id);
+        if (!old) {
+          this.dictionary.C.push({ ...clone(c), indicators: [c.indicator] });
+          changes.push({ entity: 'C', id: c.id, action: 'ADD', before: null, after: c.name });
+        } else if (old.version < c.version || !old.indicators.length) {
+          const prior = clone(old);
+          Object.assign(old, clone(c), { indicators: [c.indicator] });
+          changes.push({ entity: 'C', id: c.id, action: 'UPDATE', before: prior.indicator || 'chưa có chỉ báo', after: c.indicator });
+        } else changes.push({ entity: 'C', id: c.id, action: 'REUSE', before: old.name, after: old.name });
+      }
+      this.dictionary.version = this.round === 1 ? '1.0' : '1.1';
+      this.dictionary.W = [{ id: 'W-PO', role: 'Product Owner', tasks: clone(this.data.tasks) }];
+      const frame = {
+        id: 'R-PO',
+        version: this.dictionary.version,
+        role: 'Product Owner',
+        purpose: 'Mô phỏng phát triển',
+        evidence: 'synthetic_only',
+        competencies: this.outputs.B6.cards.map((c: any) => ({ id: c.id, name: c.name, level: c.level, indicator: c.indicator, evidence: c.evidence })),
+      };
+      this.dictionary.R.push(clone(frame));
+      this.dictionary.V.push(...clone(this.data.jds), ...clone(this.data.events));
+      this.dictionary.G.push({ version: this.dictionary.version, run: this.round, changes, policy: this.config.version });
+      out = { frame, changes, audit: this.audit, version: this.dictionary.version, reused: changes.filter((c) => c.action === 'REUSE').length };
+      check('AU hoàn tất kiểm toán', true, true, true);
+      check('Chỉ phát hành bản mô phỏng', frame.evidence, 'synthetic_only', true);
+      this.history.push({ run: this.round, before, after: clone(this.dictionary), output: clone(out) });
+      this.completed = true;
+    }
+    const pass = rules.every((r) => r.pass);
+    out._gate = pass;
+    out._rules = rules;
+    out._metrics = metrics;
+    this.outputs[id] = freeze(clone(out));
+    this.log(id, 'INPUT', { snapshot: input, policy: this.config.version });
+    this.log(id, pass ? 'PASS' : 'BLOCK', { output: out, rules });
+    if (!pass) {
+      this.halted = true;
+      this.log(id, 'HALT', { reason: rules.filter((r) => !r.pass).map((r) => r.name) });
+      return { id, input, output: out, pass: false };
+    }
+    this.position++;
+    return { id, input, output: out, pass: true };
+  }
+
+  quick(): any {
+    if (!this.outputs.B3 || this.halted) return null;
+    const cs = [...new Map<string, any>(this.outputs.B3.candidates.map((c: any) => [c.concept, c])).values()];
+    this.fast = {
+      version: `trial-${this.round}.1`,
+      label: 'Bản thử · chưa G4–G8',
+      competencies: cs.map((c) => ({ id: c.id, name: c.name })),
+      audit: { traceability: 1, scopeAllowed: true },
+      feedback: {
+        tasks: 12,
+        success: 9,
+        errors: 3,
+        successRate: 0.75,
+        notes: ['Cần chỉ báo rõ hơn về đo tác động sản phẩm', 'Cần tình huống quản trị dữ liệu AI'],
+      },
+    };
+    if (!this.dictionary.V.some((e) => e.id === 'PILOT-' + this.round))
+      this.dictionary.V.push({ id: 'PILOT-' + this.round, kind: 'pilot', synthetic: true, source: 'seed://pilot/' + this.round, ...clone(this.fast.feedback) });
+    this.log('FAST', 'DELIVER', this.fast);
+    return this.fast;
+  }
+
+  approve() {
+    const regression = new Map([{ concept: 'stakeholder' }, { concept: 'stakeholder' }].map((x) => [x.concept, x])).size === 1;
+    const noFalseMerge = new Map([{ concept: 'metrics' }, { concept: 'discovery' }].map((x) => [x.concept, x])).size === 2;
+    this.dictionary.lessons.forEach((l) => {
+      l.testResult = { regression, noFalseMerge };
+      l.safe = regression && noFalseMerge;
+    });
+    this.log('G', 'HUMAN_SAFE', { lessons: this.dictionary.lessons.map((l) => l.id), simulation: true });
+  }
+
+  recover(reason?: string) {
+    this.approve();
+    this.fault = 'none';
+    this.halted = false;
+    this.log('G', 'RESUME', { newAttempt: true, simulation: true, reason: reason ?? null });
+  }
+
+  nextRound(): this {
+    if (!this.completed) throw Error('Cần hoàn tất lượt 1');
+    if (this.dictionary.lessons.some((l) => !l.safe)) throw Error('Lesson chưa An toàn');
+    return this.reset(2);
+  }
+
+  /** Rebuild a Lab from a JSON snapshot (localStorage). */
+  static restore(json: any): Lab {
+    return Object.assign(new Lab(), clone(json));
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@cl/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3100 -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -p 3100 -H 0.0.0.0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cl/contract": "workspace:*",
+    "@cl/example": "workspace:*",
+    "@cl/db": "workspace:*",
+    "@cl/pipeline": "workspace:*",
+    "@cl/agents": "workspace:*",
+    "@cl/registry": "workspace:*",
+    "@cl/bundle": "workspace:*",
+    "@cl/ingest": "workspace:*",
+    "next": "16.4.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
+  }
+}

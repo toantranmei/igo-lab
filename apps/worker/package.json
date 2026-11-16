@@ -1,0 +1,17 @@
+{
+  "name": "@cl/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@cl/contract": "workspace:*",
+    "@cl/db": "workspace:*",
+    "@cl/pipeline": "workspace:*",
+    "@cl/agents": "workspace:*",
+    "@cl/registry": "workspace:*",
+    "@cl/ingest": "workspace:*"
+  }
+}
