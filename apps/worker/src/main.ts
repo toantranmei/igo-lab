@@ -20,14 +20,11 @@ async function main() {
   if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN) console.warn('[worker] ANTHROPIC_API_KEY/ANTHROPIC_AUTH_TOKEN đang được đặt; chúng bị loại khỏi tiến trình con để CLI dùng phiên đăng nhập.');
   const first = await heartbeat();
   console.log(`[worker] ${first.message} (bin: ${runner.bin})`);
-  let lastBeat = Date.now();
+  // On a timer, not in the loop: one block can run for many minutes and the web must still see the worker alive.
+  const beat = setInterval(() => void heartbeat().catch((e) => console.error('[worker] heartbeat:', e?.message ?? e)), Number(process.env.WORKER_HEARTBEAT_MS ?? 20000));
   const idle = Number(process.env.WORKER_POLL_MS ?? 700);
   while (!stopping) {
     try {
-      if (Date.now() - lastBeat > Number(process.env.WORKER_HEARTBEAT_MS ?? 20000)) {
-        await heartbeat();
-        lastBeat = Date.now();
-      }
       const worked = (await processNextJob(db, runner)) || (await processNextSourceSearch(db, runner)) || (await processNextDataset(db));
       if (!worked) await new Promise((r) => setTimeout(r, idle));
     } catch (e) {
@@ -35,6 +32,7 @@ async function main() {
       await new Promise((r) => setTimeout(r, 3000));
     }
   }
+  clearInterval(beat);
   await closeDb();
 }
 for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => (stopping = true));

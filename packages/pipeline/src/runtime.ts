@@ -242,10 +242,17 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
   const acked = (b: BlockId) => !!cs.get(b)?.acknowledgedAt;
   const out = (b: BlockId) => (cur.get(b)?.status === 'DONE' || cur.get(b)?.status === 'BLOCKED' ? (cur.get(b)!.output as any) : null);
 
+  // progress of blocks that are still computing: finished agent calls of their attempt
+  const doneCalls = new Map<string, number>();
+  for (const a of cur.values()) {
+    if (a.status !== 'RUNNING') continue;
+    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(t.agentCall).where(eq(t.agentCall.attemptId, a.id));
+    doneCalls.set(a.id, n);
+  }
   const cards: BlockCard[] = ALL.map((b) => {
     const a = cur.get(b);
     const m = BLOCK_META[b];
-    return { id: b, name: m.name, agent: m.agent, artifact: m.artifact, state: cardState(a, acked(b)), receipt: a?.status === 'FAILED' ? `${(a.error as any)?.code}: ${(a.error as any)?.message}` : computed(a) ? ((a!.output as any).__view?.handoff ?? '') : a ? 'Đang tính…' : m.artifact, badge: badgeFor(b, snapshot, a) };
+    return { id: b, name: m.name, agent: m.agent, artifact: m.artifact, state: cardState(a, acked(b)), receipt: a?.status === 'FAILED' ? `${(a.error as any)?.code}: ${(a.error as any)?.message}` : computed(a) ? ((a!.output as any).__view?.handoff ?? '') : a ? `Đang tính… ${doneCalls.get(a.id) ?? 0} lời gọi AI đã xong${a.block === 'B1' || a.block === 'B2' || a.block === 'B3' ? ` / khoảng ${snapshot?.documents.length ?? 0} (mỗi JD một lời gọi)` : ''}` : m.artifact, badge: badgeFor(b, snapshot, a) };
   });
   let position = 0;
   for (const b of MAIN_BLOCK_IDS) {
