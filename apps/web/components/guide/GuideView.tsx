@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { TRACE_KIND_LABEL, diffDraft, gateBlocks, type BlockTrace, type GateResult, type TraceEvent } from '@cl/contract';
 import DataView, { showValue } from './DataView';
+import BlockProgressView from '@/components/line/BlockProgress';
+import { useSession } from '@/lib/session';
 import { PHASES, type MobilePane, type ViewerActions, type ViewerState } from './types';
 
 interface Props {
@@ -204,6 +206,7 @@ function OutputPane({ trace, cursor }: { trace: BlockTrace; cursor: number }) {
 
 export default function GuideView({ viewer, actions, auto, speed, live, runLabel, fallbackName, retrying }: Props) {
   const { trace, detail, cursor, preview } = viewer;
+  const liveProgress = useSession().state?.cards.find((c) => c.id === viewer.id)?.progress;
   const bodyRef = useRef<HTMLDivElement>(null);
   const events = trace?.events ?? [];
   const event: TraceEvent | undefined = events[cursor];
@@ -294,8 +297,9 @@ export default function GuideView({ viewer, actions, auto, speed, live, runLabel
           ) : (
             <div className="trace-waiting" role="status" data-testid="guide-computing">
               <i aria-hidden="true" />
-              <b>Đang tính…</b>
-              <p>{viewer.waiting === 'computing' ? 'Máy chủ đang tính block này. Ngăn sẽ tự hiện diễn tiến khi có kết quả; bạn có thể đóng và mở lại sau.' : 'Đang tải diễn tiến của block.'}</p>
+              <b>{viewer.waiting === 'computing' ? `${viewer.id} đang chạy` : 'Đang tải…'}</b>
+              <p>{viewer.waiting === 'computing' ? 'Mỗi dòng là một bước AI của block: số lời gọi đã xong trên tổng số. Ngăn sẽ tự hiện diễn tiến khi có kết quả; bạn có thể đóng ngăn, block vẫn chạy trên máy chủ.' : 'Đang tải diễn tiến của block.'}</p>
+              {viewer.waiting === 'computing' && liveProgress ? <BlockProgressView progress={liveProgress} /> : null}
             </div>
           )}
         </div>

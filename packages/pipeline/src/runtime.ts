@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { AppError, MAIN_BLOCK_IDS, scrubPaths, gateBlocks, type BlockCard, type BlockDetail, type BlockId, type BlockTrace, type CardState, type DictFrame, type GateResult, type InputDoc, type InputEvent, type InputTask, type Lesson, type LogEntry, type PendingGuide, type ReleaseHistoryEntry, type SessionState } from '@cl/contract';
 import { BLOCK_TASKS, ClaudeCliRunner, TASKS, shortModel, type TaskName } from '@cl/agents';
 import { appendEvent, hashJson, newId, t, type Db } from '@cl/db';
@@ -9,7 +9,7 @@ import { BLOCK_META } from './meta';
 import { currentRun, getSession, latestJdSet, listUserEvents, loadDocs } from './sessions';
 import { policyRef, type BlockCtx, type BlockResult, type RunSnapshot } from './types';
 
-type Attempt = typeof t.blockAttempt.$inferSelect;
+type Attempt = Omit<typeof t.blockAttempt.$inferSelect, 'trace'>;
 const RUNNERS: Record<BlockId, (c: BlockCtx) => Promise<BlockResult>> = { B0: runB0, B1: runB1, B2: runB2, B3: runB3, B4: runB4, B5: runB5, B6: runB6, B7: runB7, B8: runB8, FAST: runFAST };
 const ALL: BlockId[] = [...MAIN_BLOCK_IDS, 'FAST'];
 const isBlock = (b: string): b is BlockId => (ALL as string[]).includes(b);
@@ -20,7 +20,9 @@ export function assertBlock(b: string): BlockId {
 const computed = (a?: Attempt | null) => !!a && (a.status === 'DONE' || a.status === 'BLOCKED' || a.status === 'NEEDS_INPUT');
 
 async function currentAttempts(db: Db, runId: string) {
-  const rows = await db.select().from(t.blockAttempt).where(and(eq(t.blockAttempt.runId, runId), eq(t.blockAttempt.current, true)));
+  // Without `trace`: it can be tens of MB for a large JD set and only the guide needs it (see getTrace).
+  const { trace: _trace, ...cols } = getTableColumns(t.blockAttempt);
+  const rows = await db.select(cols).from(t.blockAttempt).where(and(eq(t.blockAttempt.runId, runId), eq(t.blockAttempt.current, true)));
   return new Map(rows.map((r) => [r.block as BlockId, r]));
 }
 async function cursors(db: Db, runId: string) {
@@ -205,6 +207,13 @@ export async function acknowledge(db: Db, workspaceId: string, sessionId: string
   await appendEvent(db, { workspaceId, type: 'ACKNOWLEDGED', actor, sessionId, runId: run.id, attemptId: a.id, block, payload: { status: a.status } });
 }
 
+/** One line for the card: the step in flight and its count, e.g. "Gộp nhiệm vụ… 8/11 lời gọi". */
+function progressText(p?: BlockCard['progress']): string {
+  const steps = p?.steps ?? [];
+  const live = steps.find((s) => s.done + s.failed < s.total) ?? steps.at(-1);
+  if (!live) return 'Đang tính… (code, chưa gọi AI)';
+  return live.done + live.failed < live.total ? `${live.title}: ${live.done}/${live.total} lời gọi AI` : 'Code đang tổng hợp kết quả…';
+}
 function badgeFor(block: BlockId, snapshot: RunSnapshot | null, a?: Attempt | null): BlockCard['badge'] {
   const used = ((a?.output as any)?.__ai ?? []) as { task_id: string; model: string; effort: string }[];
   if (computed(a)) return used.length ? { kind: 'AI', tasks: used.map((u) => ({ task_id: u.task_id, model: shortModel(u.model), effort: u.effort })) } : { kind: 'CODE' };
@@ -242,17 +251,17 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
   const acked = (b: BlockId) => !!cs.get(b)?.acknowledgedAt;
   const out = (b: BlockId) => (cur.get(b)?.status === 'DONE' || cur.get(b)?.status === 'BLOCKED' ? (cur.get(b)!.output as any) : null);
 
-  // progress of blocks that are still computing: finished agent calls of their attempt
-  const doneCalls = new Map<string, number>();
+  // what blocks that are still computing are doing right now (written by the worker as calls start/finish)
+  const progress = new Map<string, BlockCard['progress']>();
   for (const a of cur.values()) {
-    if (a.status !== 'RUNNING') continue;
-    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(t.agentCall).where(eq(t.agentCall.attemptId, a.id));
-    doneCalls.set(a.id, n);
+    if (a.status !== 'RUNNING' && a.status !== 'QUEUED') continue;
+    const [p] = await db.select().from(t.attemptProgress).where(eq(t.attemptProgress.attemptId, a.id));
+    progress.set(a.id, { started_at: new Date(a.createdAt).toISOString(), updated_at: new Date(p?.updatedAt ?? a.createdAt).toISOString(), steps: (p?.steps as any[]) ?? [] });
   }
   const cards: BlockCard[] = ALL.map((b) => {
     const a = cur.get(b);
     const m = BLOCK_META[b];
-    return { id: b, name: m.name, agent: m.agent, artifact: m.artifact, state: cardState(a, acked(b)), receipt: a?.status === 'FAILED' ? `${(a.error as any)?.code}: ${(a.error as any)?.message}` : computed(a) ? ((a!.output as any).__view?.handoff ?? '') : a ? `Đang tính… ${doneCalls.get(a.id) ?? 0} lời gọi AI đã xong${a.block === 'B1' || a.block === 'B2' || a.block === 'B3' ? ` / khoảng ${snapshot?.documents.length ?? 0} (mỗi JD một lời gọi)` : ''}` : m.artifact, badge: badgeFor(b, snapshot, a) };
+    return { id: b, name: m.name, agent: m.agent, artifact: m.artifact, state: cardState(a, acked(b)), receipt: a?.status === 'FAILED' ? `${(a.error as any)?.code}: ${(a.error as any)?.message}` : computed(a) ? ((a!.output as any).__view?.handoff ?? '') : a ? progressText(progress.get(a.id)) : m.artifact, badge: badgeFor(b, snapshot, a), ...(a && progress.get(a.id) ? { progress: progress.get(a.id) } : {}) };
   });
   let position = 0;
   for (const b of MAIN_BLOCK_IDS) {
@@ -308,7 +317,7 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
   const ws = await workerStatus(db);
   const completed = run?.status === 'COMPLETE';
   const b8 = out('B8');
-  const statusText = !run ? (docs.length ? 'Đã có bộ JD · chưa tạo lượt' : 'Chưa có JD') : stop ? 'STOP · chờ mở lại' : completed ? `Đã công bố ${committedRelease?.versionLabel ?? ''}` : halted ? `Chặn tại ${blocked[0]}` : auto.on ? `Tự động · ${pendingBlock ? `đang chạy ${pendingBlock}` : 'đang chuyển block'}` : pending && !pending.committed ? `Đang tính ${pending.id}` : pending ? `Chờ "Đã hiểu" ${pending.id}` : position === 9 ? 'Chờ quyết định công bố' : `Sẵn sàng chạy B${position}`;
+  const statusText = !run ? (docs.length ? 'Đã có bộ JD · chưa tạo lượt' : 'Chưa có JD') : stop ? 'STOP · chờ mở lại' : completed ? `Đã công bố ${committedRelease?.versionLabel ?? ''}` : halted ? `Chặn tại ${blocked[0]}` : auto.on ? `Tự động · ${pendingBlock ? `${pendingBlock} · ${progressText(progress.get(cur.get(pendingBlock)!.id))}` : 'đang chuyển block'}` : pending && !pending.committed ? `Đang tính ${pending.id}` : pending ? `Chờ "Đã hiểu" ${pending.id}` : position === 9 ? 'Chờ quyết định công bố' : `Sẵn sàng chạy B${position}`;
   return {
     mode: 'live',
     sessionId,
@@ -364,7 +373,10 @@ export async function getTrace(db: Db, workspaceId: string, sessionId: string, b
   await getSession(db, workspaceId, sessionId);
   const run = await currentRun(db, sessionId);
   const a = run ? (await currentAttempts(db, run.id)).get(block) : undefined;
-  if (a && computed(a)) return a.trace as BlockTrace;
+  if (a && computed(a)) {
+    const [row] = await db.select({ trace: t.blockAttempt.trace }).from(t.blockAttempt).where(eq(t.blockAttempt.id, a.id));
+    return row.trace as BlockTrace;
+  }
   if (a && a.status !== 'STALE') return null;
   const m = BLOCK_META[block];
   const at = '1970-01-01T00:00:00.000Z';

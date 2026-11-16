@@ -3,6 +3,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import type { BlockCard, BlockDetail, BlockId, CardState, LogEntry, SessionState } from '@cl/contract';
 import { useGuide } from '@/lib/guide-api';
 import { useSession } from '@/lib/session';
+import BlockProgressView from './BlockProgress';
 import Workbench from './Workbench';
 import './line.css';
 
@@ -54,6 +55,7 @@ function Node({ card, selected, onSelect }: { card: BlockCard; selected: boolean
         <Badges card={card} />
       </span>
       <div className="prod-receipt">{card.receipt}</div>
+      {card.progress ? <BlockProgressView progress={card.progress} compact /> : null}
       <em>{card.artifact}</em>
     </button>
   );

@@ -29,6 +29,13 @@
       "when": 1794910000000,
       "tag": "0003_dataset_auto",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794920000000,
+      "tag": "0004_attempt_progress",
+      "breakpoints": true
     }
   ]
 }

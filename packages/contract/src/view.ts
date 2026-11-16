@@ -22,6 +22,23 @@ export interface BlockCard {
   state: CardState;
   receipt: string;
   badge: AgentBadge;
+  /** Live only, while the block is computing: what it is doing right now. */
+  progress?: BlockProgress;
+}
+export interface ProgressStep {
+  task_id: string;
+  title: string;
+  model: string;
+  /** Calls issued so far for this step (a step issues all its calls up front, so this is its total). */
+  total: number;
+  done: number;
+  cached: number;
+  failed: number;
+}
+export interface BlockProgress {
+  started_at: string;
+  updated_at: string;
+  steps: ProgressStep[];
 }
 
 export interface CalcEntry {

@@ -4,6 +4,7 @@ import { gateBlocks, type BlockCard, type BlockDetail, type BlockId, type Detail
 import { useGuide } from '@/lib/guide-api';
 import { useSession } from '@/lib/session';
 import { showValue } from '@/components/guide/DataView';
+import BlockProgressView from './BlockProgress';
 import ComputeTab from './ComputeTab';
 
 type InspectMode = 'compute' | 'accept' | 'raw';
@@ -183,7 +184,8 @@ export default function Workbench({ id, card, detail, detailError, state, onSele
         <div className="prod-preview-note">Block này chưa chạy trong lượt hiện tại. Mở card chỉ hiện mô tả, không tạo job và không gọi model. Bấm “{run.label}” để chạy.</div>
       ) : detail?.state === 'running' ? (
         <div className="prod-preview-note" role="status">
-          Đang tính… Máy chủ đang xử lý block này; kết quả sẽ hiện khi job hoàn tất.
+          Máy chủ đang xử lý block này; kết quả sẽ hiện khi job hoàn tất. Mỗi dòng dưới đây là một bước AI của block: số lời gọi đã xong trên tổng số đã phát.
+          {state.cards.find((c) => c.id === id)?.progress ? <BlockProgressView progress={state.cards.find((c) => c.id === id)!.progress!} /> : null}
         </div>
       ) : null}
 

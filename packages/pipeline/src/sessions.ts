@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AppError } from '@cl/contract';
 import { BLOCK_TASKS, DEFAULT_AGENT_CONFIG, TASKS, type AgentConfig, type TaskName } from '@cl/agents';
 import { appendEvent, hashJson, newId, sha256, t, type Db } from '@cl/db';
@@ -131,9 +131,13 @@ export async function latestJdSet(db: Db, sessionId: string) {
   return r ?? null;
 }
 export async function loadDocs(db: Db, workspaceId: string, refs: { document_id: string; version: number }[]): Promise<LoadedDoc[]> {
+  // One query for the whole set: per-document queries made the session state take seconds with 100+ JDs.
   const out: LoadedDoc[] = [];
+  const ids = [...new Set(refs.map((r) => r.document_id))];
+  const rows = ids.length ? await db.select().from(t.documentVersion).where(and(eq(t.documentVersion.workspaceId, workspaceId), inArray(t.documentVersion.documentId, ids))) : [];
+  const byRef = new Map(rows.map((d) => [`${d.documentId}@${d.version}`, d]));
   for (const r of refs) {
-    const [d] = await db.select().from(t.documentVersion).where(and(eq(t.documentVersion.workspaceId, workspaceId), eq(t.documentVersion.documentId, r.document_id), eq(t.documentVersion.version, r.version)));
+    const d = byRef.get(`${r.document_id}@${r.version}`);
     if (!d) continue;
     out.push({ ref: `${d.documentId}@${d.version}`, document_id: d.documentId, version: d.version, original_name: d.originalName, content_sha256: sha256(d.normalizedText), source_kind: d.sourceKind, source_ref: d.sourceRef, origin_group: d.originGroup, check_status: d.checkStatus, language: d.language, usage_note: d.usageNote, source_url: d.sourceUrl, text: d.normalizedText, segments: (d.segments as any[]).map((s) => ({ id: segmentId(d.documentId, d.version, s.n), n: s.n, start: s.start, end: s.end, text: s.text })) });
   }

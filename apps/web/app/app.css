@@ -31,3 +31,20 @@ a.nav{display:block;text-decoration:none}
 .cl-badge.ai{color:var(--accent);border-color:#9cafff66}
 .cl-badge.code{color:var(--green);border-color:#72d9b155}
 @media(max-width:740px){.session-picker{margin-right:0;min-width:0}.session-picker label{display:none}.session-picker select{max-width:120px}.head-progress{display:none}main>header{height:auto;min-height:66px}main>header>div{flex-wrap:wrap;padding:8px 0}main>header .avatar{display:none}}
+
+.block-progress{margin-top:10px;display:grid;gap:8px;text-align:left}
+.block-progress.compact{gap:5px;margin-top:7px}
+.bp-head{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--text)}
+.block-progress.compact .bp-head{font-size:10px}
+.bp-step.done .bp-head{color:var(--green)}
+.bp-bar{height:5px;background:#303a4e;border-radius:4px;overflow:hidden;margin-top:3px}
+.bp-bar i{display:block;height:100%;background:var(--accent);transition:width .4s}
+.bp-step.done .bp-bar i{background:var(--green)}
+.bp-step.live .bp-head span{animation:bp-pulse 1.4s ease-in-out infinite}
+.block-progress small{font-size:10px}
+@keyframes bp-pulse{50%{opacity:.55}}
+.trace-waiting .block-progress{margin-top:16px;gap:12px}
+.trace-waiting .bp-head{font-size:12px}
+.trace-waiting .bp-head b{display:inline;font-size:12px;color:inherit}
+.trace-waiting .bp-bar{height:7px}
+.trace-waiting .block-progress small{font-size:11px}

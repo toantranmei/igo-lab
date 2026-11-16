@@ -349,3 +349,10 @@ export const runAuto = pgTable('run_auto', {
   note: text('note').notNull().default(''),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+/** Live progress of an attempt that is still computing (which agent step, how many calls done). Not exported. */
+export const attemptProgress = pgTable('attempt_progress', {
+  attemptId: text('attempt_id').primaryKey(),
+  steps: jsonb('steps').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});

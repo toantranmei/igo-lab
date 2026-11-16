@@ -1,6 +1,6 @@
-import type { TraceSource } from '@cl/contract';
+import type { ProgressStep, TraceSource } from '@cl/contract';
 import { BLOCK_TASKS, TASKS, runTask, shortModel, type TaskInput, type TaskModel, type TaskName, type TaskOutput } from '@cl/agents';
-import { sha256 } from '@cl/db';
+import { sha256, t } from '@cl/db';
 import type { CData, Rec } from '@cl/registry';
 import { BLOCK_META } from './meta';
 import { TraceBuilder, gate, pct, policyRef, ratio, round4, type BlockCtx, type BlockResult, type LoadedDoc, type SnapSegment } from './types';
@@ -8,12 +8,46 @@ import { TraceBuilder, gate, pct, policyRef, ratio, round4, type BlockCtx, type 
 export const norm = (s: string) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
 export const short = (s: string, n = 90) => (Array.from(s).length > n ? Array.from(s).slice(0, n - 1).join('') + '…' : s);
 
-/** Wraps runTask and remembers which tasks/models an attempt really used. */
+/**
+ * Wraps runTask, remembers which tasks/models an attempt really used, and publishes live progress:
+ * per agent step, how many calls were issued and how many are finished. A step issues all its calls at once
+ * (they wait in the CLI semaphore), so "issued" is that step's total.
+ */
 export function agentTracker(ctx: BlockCtx) {
   const used = new Map<string, { task_id: string; model: string; effort: string; calls: number; cached: number }>();
+  const steps = new Map<string, ProgressStep>();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lastWrite = 0;
+  const write = () => {
+    timer = null;
+    lastWrite = Date.now();
+    const updatedAt = new Date().toISOString();
+    const value = [...steps.values()];
+    void ctx.agent.db.insert(t.attemptProgress).values({ attemptId: ctx.attemptId, steps: value, updatedAt }).onConflictDoUpdate({ target: t.attemptProgress.attemptId, set: { steps: value, updatedAt } }).catch(() => {});
+  };
+  const publish = () => {
+    if (timer) return;
+    timer = setTimeout(write, Math.max(0, 700 - (Date.now() - lastWrite)));
+  };
   return {
     async run<K extends TaskName>(name: K, input: TaskInput<K>, override?: TaskModel): Promise<{ output: TaskOutput<K>; source: TraceSource }> {
-      const r = await runTask(ctx.agent, name, input, override);
+      const tm = override ?? ctx.agent.config.tasks[name];
+      const step = steps.get(name) ?? { task_id: TASKS[name].id, title: TASKS[name].title, model: shortModel(tm.model), total: 0, done: 0, cached: 0, failed: 0 };
+      if (!step.model.split('/').includes(shortModel(tm.model))) step.model += '/' + shortModel(tm.model);
+      step.total++;
+      steps.set(name, step);
+      publish();
+      let r;
+      try {
+        r = await runTask(ctx.agent, name, input, override);
+      } catch (e) {
+        step.failed++;
+        publish();
+        throw e;
+      }
+      step.done++;
+      if (r.cacheHit) step.cached++;
+      publish();
       const key = `${name}|${r.model}|${r.effort}`;
       const u = used.get(key) ?? { task_id: TASKS[name].id, model: r.model, effort: r.effort, calls: 0, cached: 0 };
       u.calls++;
