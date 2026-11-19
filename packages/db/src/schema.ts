@@ -22,6 +22,8 @@ export const session = pgTable(
     industry: text('industry'),
     purpose: text('purpose').notNull().default(''),
     context: text('context').notNull().default(''),
+    /** Charter (white paper 4.1): level, framework type, decision served, performance criteria, owner, policy id. */
+    charter: jsonb('charter').notNull().default({}),
     createdAt: ts('created_at').notNull().defaultNow(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -82,7 +84,45 @@ export const userEvent = pgTable('user_event', {
   action: text('action').notNull().default(''),
   outcome: text('outcome').notNull().default(''),
   sourceRef: text('source_ref').notNull().default(''),
+  /** P4: pseudonymous person code (never a name), group EXCELLENT | AVERAGE, BEI | WRITTEN, consent and retention. */
+  personCode: text('person_code'),
+  personGroup: text('person_group'),
+  kind: text('kind').notNull().default('WRITTEN'),
+  consentRef: text('consent_ref'),
+  retainUntil: text('retain_until'),
   submittedBy: text('submitted_by').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/** P4.1: one respondent's ratings of one competency (survey, level A ≥ 10 people, level B ≥ 5). */
+export const surveyResponse = pgTable(
+  'survey_response',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    sessionId: text('session_id').notNull(),
+    respondentCode: text('respondent_code').notNull(),
+    competencyLabel: text('competency_label').notNull(),
+    importance: integer('importance'),
+    discrimination: integer('discrimination'),
+    level: integer('level'),
+    consentRef: text('consent_ref').notNull(),
+    retainUntil: text('retain_until'),
+    submittedBy: text('submitted_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('survey_session').on(t.sessionId)],
+);
+
+/** P4.5: register of AI tools; every run snapshot points to one entry. */
+export const aiTool = pgTable('ai_tool', {
+  id: text('id').primaryKey(),
+  provider: text('provider').notNull(),
+  channel: text('channel').notNull(),
+  accountType: text('account_type').notNull(),
+  retention: text('retention').notNull(),
+  noTraining: boolean('no_training').notNull(),
+  note: text('note').notNull().default(''),
   createdAt: ts('created_at').notNull().defaultNow(),
 });
 
@@ -122,6 +162,9 @@ export const blockAttempt = pgTable(
     trace: jsonb('trace'),
     error: jsonb('error'),
     computedAt: ts('computed_at'),
+    /** When the worker claimed the job / when the block finished (any outcome). */
+    startedAt: ts('started_at'),
+    finishedAt: ts('finished_at'),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('attempt_run_block_no').on(t.runId, t.block, t.attemptNo), uniqueIndex('attempt_run_idem').on(t.runId, t.idempotencyKey)],
@@ -156,7 +199,7 @@ export const agentCall = pgTable(
     durationMs: integer('duration_ms'),
     usage: jsonb('usage'),
     costUsd: doublePrecision('cost_usd'),
-    /** OK | SCHEMA_INVALID | CLI_ERROR | TIMEOUT | REJECTED */
+    /** OK | SCHEMA_INVALID | CLI_ERROR | TIMEOUT | REJECTED | QUOTA */
     status: text('status').notNull(),
     error: text('error'),
   },
@@ -309,6 +352,8 @@ export const workerStatus = pgTable('worker_status', {
   ok: boolean('ok').notNull(),
   cliVersion: text('cli_version'),
   message: text('message').notNull(),
+  /** Usage-limit circuit breaker: null = closed; otherwise { code, message, until, tripped_at }. */
+  breaker: jsonb('breaker'),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
@@ -347,6 +392,8 @@ export const runAuto = pgTable('run_auto', {
   runId: text('run_id').primaryKey(),
   on: boolean('on').notNull().default(false),
   note: text('note').notNull().default(''),
+  /** Structured stop reason: { code, block, message, actions, until, at } (see RunStop in @cl/contract). */
+  stop: jsonb('stop'),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
@@ -356,3 +403,72 @@ export const attemptProgress = pgTable('attempt_progress', {
   steps: jsonb('steps').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
+
+/** Trace beats written while a block runs (only the changed variables per beat), so the trace is readable before it ends. */
+export const traceEvent = pgTable(
+  'trace_event',
+  {
+    attemptId: text('attempt_id').notNull(),
+    seq: integer('seq').notNull(),
+    event: jsonb('event').notNull(),
+  },
+  (t) => [primaryKey({ name: 'trace_event_pk', columns: [t.attemptId, t.seq] })],
+);
+
+/** One row per calculation the code made (formula, inputs, result), written as the block runs. */
+export const calcRecord = pgTable(
+  'calc_record',
+  {
+    attemptId: text('attempt_id').notNull(),
+    seq: integer('seq').notNull(),
+    step: text('step').notNull(),
+    substep: text('substep').notNull(),
+    itemRef: text('item_ref'),
+    formula: text('formula').notNull(),
+    inputs: jsonb('inputs').notNull(),
+    output: jsonb('output'),
+    decision: text('decision'),
+    seat: text('seat'),
+  },
+  (t) => [primaryKey({ name: 'calc_record_pk', columns: [t.attemptId, t.seq] }), index('calc_record_substep').on(t.attemptId, t.substep)],
+);
+
+/** Quality of one agent (task × model × prompt version) measured on an anchor set (spec P1.2, formula 16). */
+export const agentMeasure = pgTable(
+  'agent_measure',
+  {
+    id: text('id').primaryKey(),
+    taskId: text('task_id').notNull(),
+    model: text('model').notNull(),
+    promptVersion: text('prompt_version').notNull(),
+    anchorSet: text('anchor_set').notNull(),
+    metrics: jsonb('metrics').notNull(),
+    thresholds: jsonb('thresholds').notNull(),
+    passed: boolean('passed').notNull(),
+    measuredBy: text('measured_by').notNull(),
+    measuredAt: ts('measured_at').notNull().defaultNow(),
+  },
+  (t) => [index('agent_measure_key').on(t.taskId, t.model, t.promptVersion, t.measuredAt)],
+);
+
+/** P5.1 production catalogue: one framework to produce (root, level-derived or industry variant) in a batch. */
+export const productionItem = pgTable(
+  'production_item',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    batchId: text('batch_id').notNull(),
+    roleTitle: text('role_title').notNull(),
+    level: text('level'),
+    industry: text('industry'),
+    /** ROOT | DERIVED_LEVEL | INDUSTRY_VARIANT */
+    frameworkType: text('framework_type').notNull(),
+    rootItemId: text('root_item_id'),
+    sessionId: text('session_id'),
+    /** P5.4: E8 audits every root and a random fifth of the derived frameworks (all of them after a failure). */
+    auditSampled: boolean('audit_sampled').notNull().default(true),
+    createdBy: text('created_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [index('production_batch').on(t.workspaceId, t.batchId)],
+);

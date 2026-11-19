@@ -4,8 +4,8 @@ import { runBlock } from './helpers';
 test('A01 · Default Example chạy đủ hai lượt, đúng số liệu, export khung 1.0 vẫn giữ C04 bậc 3', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('/');
-  await expect(page).toHaveURL(/\/s\/example\/line/);
+  await page.goto('/demo');
+  await expect(page).toHaveURL(/\/demo\/line/);
   await expect(page.locator('.mode-pill')).toHaveText('EXAMPLE');
   // the example never talks to the server-side pipeline
   const apiCalls: string[] = [];
@@ -13,24 +13,24 @@ test('A01 · Default Example chạy đủ hai lượt, đúng số liệu, expor
 
   for (let b = 0; b < 9; b++) await runBlock(page);
   await expect(page.locator('[data-prod-select="B8"]')).toContainText('ĐẠT');
-  await page.goto('/s/example/inputs');
+  await page.goto('/demo/inputs');
   await expect(page.locator('#inputs')).toContainText('8');
-  await page.goto('/s/example/dictionary');
+  await page.goto('/demo/dictionary');
   await page.locator('[data-dict-tab="versions"]').click();
   await expect(page.locator('#dictionary')).toContainText('1.0');
   await expect(page.locator('#dictionary')).toContainText('4');
 
   // run 2: confirm the lesson, start round 2, run all blocks
-  await page.goto('/s/example/audit');
+  await page.goto('/demo/audit');
   await expect(page.locator('#audit')).toContainText('LL-001');
   const reason = page.locator('#audit input[type="text"], #audit textarea').first();
   if (await reason.count()) await reason.fill('Đã xem kiểm soát');
   await page.locator('#safe').click();
   await page.locator('#round2').click();
-  await page.goto('/s/example/line');
+  await page.goto('/demo/line');
   for (let b = 0; b < 9; b++) await runBlock(page);
 
-  await page.goto('/s/example/framework');
+  await page.goto('/demo/framework');
   await expect(page.locator('#frame-version')).toBeVisible();
   const options = await page.locator('#frame-version option').allTextContents();
   expect(options.join(' ')).toContain('1.0');

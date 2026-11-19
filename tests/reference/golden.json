@@ -1,0 +1,2937 @@
+{
+ "generated_by": "tests/reference/formulas_ref.py",
+ "tolerance": 0.01,
+ "sources": {
+  "WP": "docs/whitepaper/competence-lab-whitepaper.docx (¶ = paragraph index, see --dump-whitepaper)",
+  "WPmd": "docs/whitepaper/competence-lab-whitepaper.md",
+  "SPEC": "docs/specs/competence-lab-upgrade-spec.md"
+ },
+ "cases": [
+  {
+   "formula": "(1)",
+   "name": "snapshot hash, canonical JSON of [jds, base, thresholds, ai_config]",
+   "inputs": {
+    "jds": [
+     {
+      "id": "J1",
+      "text": "Quản lý dự án phần mềm"
+     },
+     {
+      "id": "J2",
+      "text": "PM"
+     }
+    ],
+    "base_dictionary": "dict@3.2.0",
+    "thresholds": {
+     "kappa": 0.61,
+     "rwg": 0.7,
+     "retranslation": 0.7
+    },
+    "ai_config": {
+     "E1": "haiku-5.5",
+     "E9": "opus-5.5"
+    }
+   },
+   "expected": {
+    "sha256_hex": "dcacd6ebc844eec7766fdf426a149eb9244aa129189339a3891e00493fd05ac8",
+    "length": 64
+   },
+   "note": "Byte-exact match only if the implementation uses the same serialisation; otherwise compare structure (64 hex chars, deterministic)."
+  },
+  {
+   "formula": "(1)",
+   "name": "one character changed → H changes",
+   "inputs": {
+    "a": {
+     "jds": [
+      {
+       "id": "J1",
+       "text": "Quản lý dự án phần mềm"
+      },
+      {
+       "id": "J2",
+       "text": "PM"
+      }
+     ],
+     "base_dictionary": "dict@3.2.0",
+     "thresholds": {
+      "kappa": 0.61,
+      "rwg": 0.7,
+      "retranslation": 0.7
+     },
+     "ai_config": {
+      "E1": "haiku-5.5",
+      "E9": "opus-5.5"
+     }
+    },
+    "b": {
+     "jds": [
+      {
+       "id": "J1",
+       "text": "Quản lý dự án phần mềm"
+      },
+      {
+       "id": "J2",
+       "text": "PM."
+      }
+     ],
+     "base_dictionary": "dict@3.2.0",
+     "thresholds": {
+      "kappa": 0.61,
+      "rwg": 0.7,
+      "retranslation": 0.7
+     },
+     "ai_config": {
+      "E1": "haiku-5.5",
+      "E9": "opus-5.5"
+     }
+    }
+   },
+   "expected": {
+    "equal": false
+   },
+   "note": "Structural property from WP ¶65."
+  },
+  {
+   "formula": "(1)",
+   "name": "same input twice → same H",
+   "inputs": {
+    "a": {
+     "jds": [
+      {
+       "id": "J1",
+       "text": "Quản lý dự án phần mềm"
+      },
+      {
+       "id": "J2",
+       "text": "PM"
+      }
+     ],
+     "base_dictionary": "dict@3.2.0",
+     "thresholds": {
+      "kappa": 0.61,
+      "rwg": 0.7,
+      "retranslation": 0.7
+     },
+     "ai_config": {
+      "E1": "haiku-5.5",
+      "E9": "opus-5.5"
+     }
+    },
+    "b": {
+     "jds": [
+      {
+       "id": "J1",
+       "text": "Quản lý dự án phần mềm"
+      },
+      {
+       "id": "J2",
+       "text": "PM"
+      }
+     ],
+     "base_dictionary": "dict@3.2.0",
+     "thresholds": {
+      "kappa": 0.61,
+      "rwg": 0.7,
+      "retranslation": 0.7
+     },
+     "ai_config": {
+      "E1": "haiku-5.5",
+      "E9": "opus-5.5"
+     }
+    }
+   },
+   "expected": {
+    "equal": true
+   },
+   "note": "Determinism."
+  },
+  {
+   "formula": "(2)",
+   "name": "all conditions hold",
+   "inputs": {
+    "charter": {
+     "vi_tri": "Project Manager",
+     "nganh": "CNTT",
+     "cap_bac": "Senior",
+     "muc_dich": "Tuyển dụng",
+     "muc_chat_che": "C",
+     "loai_khung": "goc"
+    },
+    "sealed_hash": "dcacd6ebc844eec7766fdf426a149eb9244aa129189339a3891e00493fd05ac8",
+    "recomputed_hash": "dcacd6ebc844eec7766fdf426a149eb9244aa129189339a3891e00493fd05ac8",
+    "step_pairs": [
+     {
+      "step": "B3",
+      "maker_model": "haiku",
+      "checker_model": "opus"
+     },
+     {
+      "step": "B6",
+      "maker_model": "sonnet",
+      "checker_model": "haiku"
+     }
+    ]
+   },
+   "expected": {
+    "fields_ok": true,
+    "hash_ok": true,
+    "independence_ok": true,
+    "G0": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(2)",
+   "name": "checker same model as maker (SPEC L335)",
+   "inputs": {
+    "charter": {
+     "vi_tri": "Project Manager",
+     "nganh": "CNTT",
+     "cap_bac": "Senior",
+     "muc_dich": "Tuyển dụng",
+     "muc_chat_che": "C",
+     "loai_khung": "goc"
+    },
+    "sealed_hash": "dcacd6ebc844eec7766fdf426a149eb9244aa129189339a3891e00493fd05ac8",
+    "recomputed_hash": "dcacd6ebc844eec7766fdf426a149eb9244aa129189339a3891e00493fd05ac8",
+    "step_pairs": [
+     {
+      "step": "B3",
+      "maker_model": "sonnet",
+      "checker_model": "sonnet"
+     }
+    ]
+   },
+   "expected": {
+    "fields_ok": true,
+    "hash_ok": true,
+    "independence_ok": false,
+    "G0": false
+   },
+   "note": "Acceptance P2 #5: G0 must block."
+  },
+  {
+   "formula": "(2)",
+   "name": "missing field + hash mismatch",
+   "inputs": {
+    "charter": {
+     "vi_tri": "Project Manager",
+     "nganh": "  ",
+     "cap_bac": "Senior",
+     "muc_dich": "Tuyển dụng",
+     "muc_chat_che": "C",
+     "loai_khung": "goc"
+    },
+    "sealed_hash": "dcacd6ebc844eec7766fdf426a149eb9244aa129189339a3891e00493fd05ac8",
+    "recomputed_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "step_pairs": [
+     {
+      "step": "B3",
+      "maker_model": "haiku",
+      "checker_model": "opus"
+     },
+     {
+      "step": "B6",
+      "maker_model": "sonnet",
+      "checker_model": "haiku"
+     }
+    ]
+   },
+   "expected": {
+    "fields_ok": false,
+    "hash_ok": false,
+    "independence_ok": true,
+    "G0": false
+   },
+   "note": "Whitespace-only field counts as missing."
+  },
+  {
+   "formula": "(3)",
+   "name": "readable, unique, on target",
+   "inputs": {
+    "readable": true,
+    "not_duplicate": true,
+    "on_target": true
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(3)",
+   "name": "near-duplicate",
+   "inputs": {
+    "readable": true,
+    "not_duplicate": false,
+    "on_target": true
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(3)",
+   "name": "AI uncertain → not counted",
+   "inputs": {
+    "readable": true,
+    "not_duplicate": true,
+    "on_target": false
+   },
+   "expected": false,
+   "note": "WP ¶88: JD AI không chắc không được đếm."
+  },
+  {
+   "formula": "(4)",
+   "name": "Jaccard 6/8",
+   "inputs": {
+    "A": [
+     "quản lý",
+     "dự án",
+     "rủi ro",
+     "ngân sách",
+     "tiến độ",
+     "báo cáo",
+     "nhân sự"
+    ],
+    "B": [
+     "quản lý",
+     "dự án",
+     "rủi ro",
+     "ngân sách",
+     "tiến độ",
+     "báo cáo",
+     "khách hàng"
+    ]
+   },
+   "expected": {
+    "J": 0.75,
+    "duplicate": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(4)",
+   "name": "J exactly 0.85 (17/20) — boundary",
+   "inputs": {
+    "A": [
+     "x0",
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "x5",
+     "x6",
+     "x7",
+     "x8",
+     "x9",
+     "x10",
+     "x11",
+     "x12",
+     "x13",
+     "x14",
+     "x15",
+     "x16",
+     "a1",
+     "a2",
+     "a3"
+    ],
+    "B": [
+     "x0",
+     "x1",
+     "x2",
+     "x3",
+     "x4",
+     "x5",
+     "x6",
+     "x7",
+     "x8",
+     "x9",
+     "x10",
+     "x11",
+     "x12",
+     "x13",
+     "x14",
+     "x15",
+     "x16"
+    ]
+   },
+   "expected": {
+    "J": 0.85,
+    "duplicate": true
+   },
+   "note": "Ambiguity: ≥ 0,85 (reference) vs > 0,85 ('trên 0,85', WP ¶93)."
+  },
+  {
+   "formula": "(4)",
+   "name": "both empty",
+   "inputs": {
+    "A": [],
+    "B": []
+   },
+   "expected": {
+    "J": null,
+    "duplicate": false
+   },
+   "note": "0/0 undefined → null."
+  },
+  {
+   "formula": "(4)",
+   "name": "disjoint",
+   "inputs": {
+    "A": [
+     "a"
+    ],
+    "B": [
+     "b"
+    ]
+   },
+   "expected": {
+    "J": 0.0,
+    "duplicate": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(5)",
+   "name": "L for J1",
+   "inputs": {
+    "A": 3,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": 21,
+   "note": ""
+  },
+  {
+   "formula": "(6)",
+   "name": "M for J1",
+   "inputs": {
+    "A": 3,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": 21,
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "rank for J1",
+   "inputs": {
+    "A": 3,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": "P1",
+   "note": ""
+  },
+  {
+   "formula": "(5)",
+   "name": "L for J2",
+   "inputs": {
+    "A": 2,
+    "B": 3,
+    "C": 2,
+    "D": 2,
+    "E": 2
+   },
+   "expected": 14,
+   "note": ""
+  },
+  {
+   "formula": "(6)",
+   "name": "M for J2",
+   "inputs": {
+    "A": 2,
+    "B": 3,
+    "C": 2,
+    "D": 2,
+    "E": 2
+   },
+   "expected": 17,
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "rank for J2",
+   "inputs": {
+    "A": 2,
+    "B": 3,
+    "C": 2,
+    "D": 2,
+    "E": 2
+   },
+   "expected": "P2",
+   "note": ""
+  },
+  {
+   "formula": "(5)",
+   "name": "L for J3",
+   "inputs": {
+    "A": 1,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": 15,
+   "note": ""
+  },
+  {
+   "formula": "(6)",
+   "name": "M for J3",
+   "inputs": {
+    "A": 1,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": null,
+   "note": "null = A < 2, M not computed"
+  },
+  {
+   "formula": "(7)",
+   "name": "rank for J3",
+   "inputs": {
+    "A": 1,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": "P2",
+   "note": ""
+  },
+  {
+   "formula": "(5)",
+   "name": "L for J4",
+   "inputs": {
+    "A": 3,
+    "B": 1,
+    "C": 3,
+    "D": 2,
+    "E": 1
+   },
+   "expected": 18,
+   "note": ""
+  },
+  {
+   "formula": "(6)",
+   "name": "M for J4",
+   "inputs": {
+    "A": 3,
+    "B": 1,
+    "C": 3,
+    "D": 2,
+    "E": 1
+   },
+   "expected": 12,
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "rank for J4",
+   "inputs": {
+    "A": 3,
+    "B": 1,
+    "C": 3,
+    "D": 2,
+    "E": 1
+   },
+   "expected": "P1",
+   "note": ""
+  },
+  {
+   "formula": "(5)",
+   "name": "L for J5",
+   "inputs": {
+    "A": 2,
+    "B": 2,
+    "C": 1,
+    "D": 0,
+    "E": 1
+   },
+   "expected": 9,
+   "note": ""
+  },
+  {
+   "formula": "(6)",
+   "name": "M for J5",
+   "inputs": {
+    "A": 2,
+    "B": 2,
+    "C": 1,
+    "D": 0,
+    "E": 1
+   },
+   "expected": 9,
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "rank for J5",
+   "inputs": {
+    "A": 2,
+    "B": 2,
+    "C": 1,
+    "D": 0,
+    "E": 1
+   },
+   "expected": "P3",
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "boundary max=13 → P2",
+   "inputs": {
+    "L": 13,
+    "M": null
+   },
+   "expected": "P2",
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "boundary max=12 → P3",
+   "inputs": {
+    "L": 12,
+    "M": 11
+   },
+   "expected": "P3",
+   "note": ""
+  },
+  {
+   "formula": "(7)",
+   "name": "boundary max=17 → P2",
+   "inputs": {
+    "L": 10,
+    "M": 17
+   },
+   "expected": "P2",
+   "note": ""
+  },
+  {
+   "formula": "(6)",
+   "name": "A exactly 2 → M computed",
+   "inputs": {
+    "A": 2,
+    "B": 3,
+    "C": 3,
+    "D": 3,
+    "E": 3
+   },
+   "expected": 21,
+   "note": ""
+  },
+  {
+   "formula": "(8)",
+   "name": "14 JD, 6 P1 (SPEC L332)",
+   "inputs": {
+    "n_full": 14,
+    "n_p1": 6
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(8)",
+   "name": "15 JD, 4 P1 (SPEC L332)",
+   "inputs": {
+    "n_full": 15,
+    "n_p1": 4
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(8)",
+   "name": "15 JD, 5 P1 — boundary",
+   "inputs": {
+    "n_full": 15,
+    "n_p1": 5
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(8)",
+   "name": "sample set of 5 JDs",
+   "inputs": {
+    "n_full": 5,
+    "n_p1": 2
+   },
+   "expected": false,
+   "note": "ranks = ['P1', 'P2', 'P2', 'P1', 'P3']"
+  },
+  {
+   "formula": "(9)",
+   "name": "x = 75",
+   "inputs": {
+    "x": 75
+   },
+   "expected": 4.0,
+   "note": "WP ¶109: 75 → 4,0"
+  },
+  {
+   "formula": "(9)",
+   "name": "x = 0",
+   "inputs": {
+    "x": 0
+   },
+   "expected": 1.0,
+   "note": ""
+  },
+  {
+   "formula": "(9)",
+   "name": "x = 100",
+   "inputs": {
+    "x": 100
+   },
+   "expected": 5.0,
+   "note": ""
+  },
+  {
+   "formula": "(9)",
+   "name": "x = 62.5",
+   "inputs": {
+    "x": 62.5
+   },
+   "expected": 3.5,
+   "note": ""
+  },
+  {
+   "formula": "(10)",
+   "name": "J_name dominates",
+   "inputs": {
+    "j_name": 0.5,
+    "j_def": 0.6
+   },
+   "expected": 0.5,
+   "note": ""
+  },
+  {
+   "formula": "(10)",
+   "name": "0.7·J_def dominates",
+   "inputs": {
+    "j_name": 0.2,
+    "j_def": 0.5
+   },
+   "expected": 0.35,
+   "note": ""
+  },
+  {
+   "formula": "(10)",
+   "name": "from text (trigram union of name+synonyms; word-set definition)",
+   "inputs": {
+    "cand_name": "Quản lý rủi ro",
+    "cand_def": "Nhận diện và kiểm soát rủi ro của dự án",
+    "comp_names": [
+     "Quản lý rủi ro dự án",
+     "Kiểm soát rủi ro"
+    ],
+    "comp_def": "Nhận diện, đánh giá và kiểm soát rủi ro dự án"
+   },
+   "expected": {
+    "J_name": 0.444444,
+    "J_def": 0.75,
+    "score": 0.525
+   },
+   "note": "Depends on tokenisation choices — see README ambiguity list."
+  },
+  {
+   "formula": "(10)",
+   "name": "reuse options: ≥ 0,3, max 3",
+   "inputs": {
+    "scores": {
+     "C1": 0.31,
+     "C2": 0.3,
+     "C3": 0.29,
+     "C4": 0.8,
+     "C5": 0.45
+    }
+   },
+   "expected": [
+    "C4",
+    "C5",
+    "C1"
+   ],
+   "note": "0,30 is included (≥); C3 0,29 excluded; only top 3 kept."
+  },
+  {
+   "formula": "(11)",
+   "name": "n_t=5, N=5",
+   "inputs": {
+    "n_t": 5,
+    "N": 5
+   },
+   "expected": 1.0,
+   "note": ""
+  },
+  {
+   "formula": "(11)",
+   "name": "n_t=4, N=5",
+   "inputs": {
+    "n_t": 4,
+    "N": 5
+   },
+   "expected": 0.8,
+   "note": ""
+  },
+  {
+   "formula": "(11)",
+   "name": "n_t=3, N=5",
+   "inputs": {
+    "n_t": 3,
+    "N": 5
+   },
+   "expected": 0.6,
+   "note": ""
+  },
+  {
+   "formula": "(11)",
+   "name": "n_t=0, N=0",
+   "inputs": {
+    "n_t": 0,
+    "N": 0
+   },
+   "expected": null,
+   "note": "N = 0 → null"
+  },
+  {
+   "formula": "(12)",
+   "name": "E(C1)",
+   "inputs": {
+    "sources": [
+     "P1",
+     "P1",
+     "P2",
+     "EXT"
+    ]
+   },
+   "expected": 11,
+   "note": "EXT = nguồn chuẩn ngoài (ω = 3)"
+  },
+  {
+   "formula": "(12)",
+   "name": "E(C2)",
+   "inputs": {
+    "sources": [
+     "P2",
+     "P3",
+     "P3"
+    ]
+   },
+   "expected": 4,
+   "note": ""
+  },
+  {
+   "formula": "(12)",
+   "name": "E(C3)",
+   "inputs": {
+    "sources": [
+     "P1",
+     "P1",
+     "P1",
+     "P1",
+     "P2"
+    ]
+   },
+   "expected": 14,
+   "note": ""
+  },
+  {
+   "formula": "(12)",
+   "name": "E(C4)",
+   "inputs": {
+    "sources": []
+   },
+   "expected": 0,
+   "note": ""
+  },
+  {
+   "formula": "(13)",
+   "name": "S(c) over 4 candidates",
+   "inputs": {
+    "E": {
+     "C1": 11,
+     "C2": 4,
+     "C3": 14,
+     "C4": 0
+    }
+   },
+   "expected": {
+    "C1": 0.785714,
+    "C2": 0.285714,
+    "C3": 1.0,
+    "C4": 0.0
+   },
+   "note": ""
+  },
+  {
+   "formula": "(13)",
+   "name": "all E = 0",
+   "inputs": {
+    "E": {
+     "C1": 0,
+     "C2": 0
+    }
+   },
+   "expected": {
+    "C1": null,
+    "C2": null
+   },
+   "note": "max = 0 → null"
+  },
+  {
+   "formula": "(14)",
+   "name": "12 of 40 sentences",
+   "inputs": {
+    "n_coded_existing": 12,
+    "n_sentences": 40
+   },
+   "expected": 0.3,
+   "note": ""
+  },
+  {
+   "formula": "(14)",
+   "name": "0 sentences",
+   "inputs": {
+    "n_coded_existing": 0,
+    "n_sentences": 0
+   },
+   "expected": null,
+   "note": "0/0 → null"
+  },
+  {
+   "formula": "(15)",
+   "name": "E1 vs E9 on 10 sentences",
+   "inputs": {
+    "coder1": [
+     "T1",
+     "T1",
+     "T2",
+     "T2",
+     "T3",
+     "T1",
+     "T2",
+     "T3",
+     "T1",
+     "T2"
+    ],
+    "coder2": [
+     "T1",
+     "T1",
+     "T2",
+     "T3",
+     "T3",
+     "T1",
+     "T2",
+     "T3",
+     "T2",
+     "T2"
+    ]
+   },
+   "expected": {
+    "p_o": 0.8,
+    "p_e": 0.34,
+    "kappa": 0.69697,
+    "G3": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(15)",
+   "name": "below threshold (negative κ)",
+   "inputs": {
+    "coder1": [
+     "T1",
+     "T1",
+     "T2",
+     "T2",
+     "T1",
+     "T2"
+    ],
+    "coder2": [
+     "T1",
+     "T2",
+     "T2",
+     "T1",
+     "T2",
+     "T1"
+    ]
+   },
+   "expected": {
+    "p_o": 0.333333,
+    "p_e": 0.5,
+    "kappa": -0.333333,
+    "G3": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(15)",
+   "name": "both coders use one code → p_e = 1",
+   "inputs": {
+    "coder1": [
+     "T1",
+     "T1",
+     "T1",
+     "T1"
+    ],
+    "coder2": [
+     "T1",
+     "T1",
+     "T1",
+     "T1"
+    ]
+   },
+   "expected": {
+    "p_o": 1.0,
+    "p_e": 1.0,
+    "kappa": null,
+    "G3": false
+   },
+   "note": "κ undefined (0/0) → null; G3 false."
+  },
+  {
+   "formula": "(16)",
+   "name": "8 correct, 2 extra, 4 missed",
+   "inputs": {
+    "correct": 8,
+    "extra": 2,
+    "missed": 4
+   },
+   "expected": {
+    "P": 0.8,
+    "R": 0.666667,
+    "F1": 0.727273
+   },
+   "note": ""
+  },
+  {
+   "formula": "(16)",
+   "name": "nothing predicted",
+   "inputs": {
+    "correct": 0,
+    "extra": 0,
+    "missed": 3
+   },
+   "expected": {
+    "P": null,
+    "R": 0.0,
+    "F1": null
+   },
+   "note": "P = 0/0 → null"
+  },
+  {
+   "formula": "(16)",
+   "name": "all wrong",
+   "inputs": {
+    "correct": 0,
+    "extra": 2,
+    "missed": 3
+   },
+   "expected": {
+    "P": 0.0,
+    "R": 0.0,
+    "F1": null
+   },
+   "note": "P = R = 0 → F1 = 0/0 → null"
+  },
+  {
+   "formula": "(17)",
+   "name": "level A, all at boundary",
+   "inputs": {
+    "n_excellent": 6,
+    "n_average": 3,
+    "events_per_person": [
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "kappa": 0.61
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(17)",
+   "name": "one person has 3 events",
+   "inputs": {
+    "n_excellent": 6,
+    "n_average": 3,
+    "events_per_person": [
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     3
+    ],
+    "kappa": 0.61
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(17)",
+   "name": "κ missing",
+   "inputs": {
+    "n_excellent": 6,
+    "n_average": 3,
+    "events_per_person": [
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4,
+     4
+    ],
+    "kappa": null
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(18)",
+   "name": "3 people, 6 events",
+   "inputs": {
+    "n_people": 3,
+    "n_events": 6
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(18)",
+   "name": "3 people, 5 events",
+   "inputs": {
+    "n_people": 3,
+    "n_events": 5
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(18)",
+   "name": "level C → G4 not applicable",
+   "inputs": {
+    "level": "C"
+   },
+   "expected": "na",
+   "note": "WP ¶148; SPEC L336"
+  },
+  {
+   "formula": "(19)",
+   "name": "only excellent",
+   "inputs": {
+    "n_exc_with": 4,
+    "n_exc": 6,
+    "n_avg_with": 0,
+    "n_avg": 3
+   },
+   "expected": {
+    "f_exc": 0.666667,
+    "f_avg": 0.0,
+    "delta": 0.666667,
+    "class": "tao_khac_biet"
+   },
+   "note": ""
+  },
+  {
+   "formula": "(19)",
+   "name": "both groups",
+   "inputs": {
+    "n_exc_with": 6,
+    "n_exc": 6,
+    "n_avg_with": 2,
+    "n_avg": 3
+   },
+   "expected": {
+    "f_exc": 1.0,
+    "f_avg": 0.666667,
+    "delta": 0.333333,
+    "class": "nguong"
+   },
+   "note": ""
+  },
+  {
+   "formula": "(19)",
+   "name": "only average",
+   "inputs": {
+    "n_exc_with": 0,
+    "n_exc": 6,
+    "n_avg_with": 1,
+    "n_avg": 3
+   },
+   "expected": {
+    "f_exc": 0.0,
+    "f_avg": 0.333333,
+    "delta": -0.333333,
+    "class": "can_tranh"
+   },
+   "note": ""
+  },
+  {
+   "formula": "(19)",
+   "name": "empty group",
+   "inputs": {
+    "n_exc_with": 0,
+    "n_exc": 0,
+    "n_avg_with": 1,
+    "n_avg": 3
+   },
+   "expected": {
+    "f_exc": null,
+    "f_avg": null,
+    "delta": null,
+    "class": null
+   },
+   "note": ""
+  },
+  {
+   "formula": "(20)",
+   "name": "ratings [4, 4, 5]",
+   "inputs": {
+    "ratings": [
+     4,
+     4,
+     5
+    ]
+   },
+   "expected": {
+    "mean": 4.333333,
+    "s2": 0.333333,
+    "rwg": 0.833333
+   },
+   "note": "SPEC L293 worked example: 0,83"
+  },
+  {
+   "formula": "(20)",
+   "name": "ratings [5, 4, 2]",
+   "inputs": {
+    "ratings": [
+     5,
+     4,
+     2
+    ]
+   },
+   "expected": {
+    "mean": 3.666667,
+    "s2": 2.333333,
+    "rwg": 0.0
+   },
+   "note": "SPEC L293: rwg 0 → loại"
+  },
+  {
+   "formula": "(20)",
+   "name": "ratings [3, 3, 3]",
+   "inputs": {
+    "ratings": [
+     3,
+     3,
+     3
+    ]
+   },
+   "expected": {
+    "mean": 3.0,
+    "s2": 0.0,
+    "rwg": 1.0
+   },
+   "note": ""
+  },
+  {
+   "formula": "(20)",
+   "name": "ratings [4, None, 5]",
+   "inputs": {
+    "ratings": [
+     4,
+     null,
+     5
+    ]
+   },
+   "expected": {
+    "mean": 4.5,
+    "s2": 0.5,
+    "rwg": 0.75
+   },
+   "note": "blank dropped, n = 2"
+  },
+  {
+   "formula": "(20)",
+   "name": "ratings [4, None, None]",
+   "inputs": {
+    "ratings": [
+     4,
+     null,
+     null
+    ]
+   },
+   "expected": {
+    "mean": 4,
+    "s2": null,
+    "rwg": null
+   },
+   "note": "< 2 ratings → null"
+  },
+  {
+   "formula": "(21)",
+   "name": "seats imp 4,4,5 disc 3,3,4",
+   "inputs": {
+    "importance": [
+     4,
+     4,
+     5
+    ],
+    "discrimination": [
+     3,
+     3,
+     4
+    ]
+   },
+   "expected": {
+    "mean_importance": 4.333333,
+    "mean_discrimination": 3.333333,
+    "s2": 0.333333,
+    "rwg": 0.833333,
+    "keep": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(21)",
+   "name": "seats imp 5,4,2 disc 4,4,4 (SPEC L333)",
+   "inputs": {
+    "importance": [
+     5,
+     4,
+     2
+    ],
+    "discrimination": [
+     4,
+     4,
+     4
+    ]
+   },
+   "expected": {
+    "mean_importance": 3.666667,
+    "mean_discrimination": 4.0,
+    "s2": 2.333333,
+    "rwg": 0.0,
+    "keep": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(21)",
+   "name": "all three at boundary",
+   "inputs": {
+    "mean_importance": 3.5,
+    "mean_discrimination": 3.0,
+    "rwg": 0.7
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(21)",
+   "name": "importance just below",
+   "inputs": {
+    "mean_importance": 3.49,
+    "mean_discrimination": 3.0,
+    "rwg": 0.9
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(22)",
+   "name": "S ≥ 0,60",
+   "inputs": {
+    "S_c": 0.6,
+    "s_ext": null
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(22)",
+   "name": "S low, s = 3,5",
+   "inputs": {
+    "S_c": 0.2,
+    "s_ext": 3.5
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(22)",
+   "name": "both low",
+   "inputs": {
+    "S_c": 0.59,
+    "s_ext": 3.4
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(23)",
+   "name": "n_core=8, n_meta=1",
+   "inputs": {
+    "n_core": 8,
+    "n_meta": 1
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(23)",
+   "name": "n_core=14, n_meta=0",
+   "inputs": {
+    "n_core": 14,
+    "n_meta": 0
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(23)",
+   "name": "n_core=15, n_meta=0",
+   "inputs": {
+    "n_core": 15,
+    "n_meta": 0
+   },
+   "expected": false,
+   "note": "SPEC L333: 15 core fails G5"
+  },
+  {
+   "formula": "(23)",
+   "name": "n_core=7, n_meta=1",
+   "inputs": {
+    "n_core": 7,
+    "n_meta": 1
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(23)",
+   "name": "n_core=10, n_meta=2",
+   "inputs": {
+    "n_core": 10,
+    "n_meta": 2
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(23)",
+   "name": "trim 16 kept → 14 by mean importance then S(c)",
+   "inputs": {
+    "kept": [
+     {
+      "id": "K00",
+      "mean_importance": 4.0,
+      "S": 0.0
+     },
+     {
+      "id": "K01",
+      "mean_importance": 4.333333333333333,
+      "S": 0.2
+     },
+     {
+      "id": "K02",
+      "mean_importance": 4.666666666666667,
+      "S": 0.4
+     },
+     {
+      "id": "K03",
+      "mean_importance": 4.0,
+      "S": 0.6
+     },
+     {
+      "id": "K04",
+      "mean_importance": 4.333333333333333,
+      "S": 0.8
+     },
+     {
+      "id": "K05",
+      "mean_importance": 4.666666666666667,
+      "S": 0.0
+     },
+     {
+      "id": "K06",
+      "mean_importance": 4.0,
+      "S": 0.2
+     },
+     {
+      "id": "K07",
+      "mean_importance": 4.333333333333333,
+      "S": 0.4
+     },
+     {
+      "id": "K08",
+      "mean_importance": 4.666666666666667,
+      "S": 0.6
+     },
+     {
+      "id": "K09",
+      "mean_importance": 4.0,
+      "S": 0.8
+     },
+     {
+      "id": "K10",
+      "mean_importance": 4.333333333333333,
+      "S": 0.0
+     },
+     {
+      "id": "K11",
+      "mean_importance": 4.666666666666667,
+      "S": 0.2
+     },
+     {
+      "id": "K12",
+      "mean_importance": 4.0,
+      "S": 0.4
+     },
+     {
+      "id": "K13",
+      "mean_importance": 4.333333333333333,
+      "S": 0.6
+     },
+     {
+      "id": "K14",
+      "mean_importance": 4.666666666666667,
+      "S": 0.8
+     },
+     {
+      "id": "K15",
+      "mean_importance": 4.0,
+      "S": 0.0
+     }
+    ]
+   },
+   "expected": [
+    "K14",
+    "K08",
+    "K02",
+    "K11",
+    "K05",
+    "K04",
+    "K13",
+    "K07",
+    "K01",
+    "K10",
+    "K09",
+    "K03",
+    "K12",
+    "K06"
+   ],
+   "note": "Final tiebreak by id is a reference choice."
+  },
+  {
+   "formula": "(24)",
+   "name": "selected ['C1', 'C2', 'C3', 'C4']",
+   "inputs": {
+    "weights": {
+     "t1": 1.0,
+     "t2": 0.8,
+     "t3": 0.6,
+     "t4": 0.4,
+     "t5": 0.2
+    },
+    "task_to_comps": {
+     "t1": [
+      "C1",
+      "C2"
+     ],
+     "t2": [
+      "C1"
+     ],
+     "t3": [
+      "C3"
+     ],
+     "t4": [
+      "C4"
+     ],
+     "t5": []
+    },
+    "selected": [
+     "C1",
+     "C2",
+     "C3",
+     "C4"
+    ]
+   },
+   "expected": {
+    "coverage": 0.933333,
+    "warn": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(24)",
+   "name": "selected ['C1', 'C3']",
+   "inputs": {
+    "weights": {
+     "t1": 1.0,
+     "t2": 0.8,
+     "t3": 0.6,
+     "t4": 0.4,
+     "t5": 0.2
+    },
+    "task_to_comps": {
+     "t1": [
+      "C1",
+      "C2"
+     ],
+     "t2": [
+      "C1"
+     ],
+     "t3": [
+      "C3"
+     ],
+     "t4": [
+      "C4"
+     ],
+     "t5": []
+    },
+    "selected": [
+     "C1",
+     "C3"
+    ]
+   },
+   "expected": {
+    "coverage": 0.8,
+    "warn": false
+   },
+   "note": "coverage exactly 0,8 → no warning (float trap: naive float gives 0.7999999999999999)"
+  },
+  {
+   "formula": "(24)",
+   "name": "selected ['C2']",
+   "inputs": {
+    "weights": {
+     "t1": 1.0,
+     "t2": 0.8,
+     "t3": 0.6,
+     "t4": 0.4,
+     "t5": 0.2
+    },
+    "task_to_comps": {
+     "t1": [
+      "C1",
+      "C2"
+     ],
+     "t2": [
+      "C1"
+     ],
+     "t3": [
+      "C3"
+     ],
+     "t4": [
+      "C4"
+     ],
+     "t5": []
+    },
+    "selected": [
+     "C2"
+    ]
+   },
+   "expected": {
+    "coverage": 0.333333,
+    "warn": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(24)",
+   "name": "all weights 0",
+   "inputs": {
+    "weights": {
+     "t1": 0
+    },
+    "task_to_comps": {},
+    "selected": [
+     "C1"
+    ]
+   },
+   "expected": {
+    "coverage": null,
+    "warn": null
+   },
+   "note": ""
+  },
+  {
+   "formula": "(25)",
+   "name": "leave-one-out on 4 selected",
+   "inputs": {
+    "weights": {
+     "t1": 1.0,
+     "t2": 0.8,
+     "t3": 0.6,
+     "t4": 0.4,
+     "t5": 0.2
+    },
+    "task_to_comps": {
+     "t1": [
+      "C1",
+      "C2"
+     ],
+     "t2": [
+      "C1"
+     ],
+     "t3": [
+      "C3"
+     ],
+     "t4": [
+      "C4"
+     ],
+     "t5": []
+    },
+    "selected": [
+     "C1",
+     "C2",
+     "C3",
+     "C4"
+    ]
+   },
+   "expected": {
+    "C1": 0.666667,
+    "C2": 0.933333,
+    "C3": 0.733333,
+    "C4": 0.8
+   },
+   "note": "C2 removal leaves coverage unchanged (overlaps C1) → candidate for merge."
+  },
+  {
+   "formula": "(25)",
+   "name": "single competency",
+   "inputs": {
+    "weights": {
+     "t1": 1.0,
+     "t2": 0.8,
+     "t3": 0.6,
+     "t4": 0.4,
+     "t5": 0.2
+    },
+    "task_to_comps": {
+     "t1": [
+      "C1",
+      "C2"
+     ],
+     "t2": [
+      "C1"
+     ],
+     "t3": [
+      "C3"
+     ],
+     "t4": [
+      "C4"
+     ],
+     "t5": []
+    },
+    "selected": [
+     "C1"
+    ]
+   },
+   "expected": {
+    "C1": 0.0
+   },
+   "note": ""
+  },
+  {
+   "formula": "(26)",
+   "name": "votes [3, 4, 4]",
+   "inputs": {
+    "votes": [
+     3,
+     4,
+     4
+    ]
+   },
+   "expected": 4,
+   "note": ""
+  },
+  {
+   "formula": "(26)",
+   "name": "votes [2, 3, 5]",
+   "inputs": {
+    "votes": [
+     2,
+     3,
+     5
+    ]
+   },
+   "expected": 3,
+   "note": ""
+  },
+  {
+   "formula": "(26)",
+   "name": "votes [3, None, 4]",
+   "inputs": {
+    "votes": [
+     3,
+     null,
+     4
+    ]
+   },
+   "expected": 4,
+   "note": "2 votes, 3,5 → round up 4 (SPEC L291)"
+  },
+  {
+   "formula": "(26)",
+   "name": "votes [None, None, 4]",
+   "inputs": {
+    "votes": [
+     null,
+     null,
+     4
+    ]
+   },
+   "expected": null,
+   "note": "< 2 votes → null"
+  },
+  {
+   "formula": "(26)",
+   "name": "votes [2, 3, 4, 5]",
+   "inputs": {
+    "votes": [
+     2,
+     3,
+     4,
+     5
+    ]
+   },
+   "expected": 4,
+   "note": "even n (with survey) → 3,5 → 4"
+  },
+  {
+   "formula": "(27)",
+   "name": "votes [['C1', 1], ['C1', 3], ['C1', 5]]",
+   "inputs": {
+    "answer": [
+     "C1",
+     3
+    ],
+    "votes": [
+     [
+      "C1",
+      1
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      5
+     ]
+    ]
+   },
+   "expected": {
+    "p": 0.333333,
+    "pass": false
+   },
+   "note": "SPEC L300: 1/3"
+  },
+  {
+   "formula": "(27)",
+   "name": "votes [['C1', 3], None, None]",
+   "inputs": {
+    "answer": [
+     "C1",
+     3
+    ],
+    "votes": [
+     [
+      "C1",
+      3
+     ],
+     null,
+     null
+    ]
+   },
+   "expected": {
+    "p": 0.333333,
+    "pass": false
+   },
+   "note": "SPEC L334: 1 correct + 2 blank = 0,33, fails"
+  },
+  {
+   "formula": "(27)",
+   "name": "votes [['C1', 3], ['C1', 3], ['C2', 3]]",
+   "inputs": {
+    "answer": [
+     "C1",
+     3
+    ],
+    "votes": [
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C2",
+      3
+     ]
+    ]
+   },
+   "expected": {
+    "p": 0.666667,
+    "pass": false
+   },
+   "note": "2/3 = 0,667 < 0,70 → fails"
+  },
+  {
+   "formula": "(27)",
+   "name": "votes [['C1', 3], ['C1', 3], ['C1', 3]]",
+   "inputs": {
+    "answer": [
+     "C1",
+     3
+    ],
+    "votes": [
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ]
+    ]
+   },
+   "expected": {
+    "p": 1.0,
+    "pass": true
+   },
+   "note": "SPEC L300: 1,00"
+  },
+  {
+   "formula": "(27)",
+   "name": "votes [['C1', 3], ['C1', 3], ['C1', 3], ['C1', 3], ['C1', 3], ['C1', 3], ['C1', 3], ['C1', 1], ['C1', 1], ['C1', 1]]",
+   "inputs": {
+    "answer": [
+     "C1",
+     3
+    ],
+    "votes": [
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      3
+     ],
+     [
+      "C1",
+      1
+     ],
+     [
+      "C1",
+      1
+     ],
+     [
+      "C1",
+      1
+     ]
+    ]
+   },
+   "expected": {
+    "p": 0.7,
+    "pass": true
+   },
+   "note": "10 raters, 7/10 = 0,70 boundary → pass"
+  },
+  {
+   "formula": "(28)",
+   "name": "5 competencies × 3 seats",
+   "inputs": {
+    "ratings": [
+     [
+      "I",
+      "I",
+      "I"
+     ],
+     [
+      "II",
+      "II",
+      "III"
+     ],
+     [
+      "III",
+      "III",
+      "III"
+     ],
+     [
+      "I",
+      "II",
+      "I"
+     ],
+     [
+      "Meta",
+      "Meta",
+      "III"
+     ]
+    ]
+   },
+   "expected": {
+    "P_i": [
+     1.0,
+     0.333333,
+     1.0,
+     0.333333,
+     0.333333
+    ],
+    "P_bar": 0.6,
+    "p_j": {
+     "I": 0.333333,
+     "II": 0.2,
+     "III": 0.333333,
+     "Meta": 0.133333
+    },
+    "P_e": 0.28,
+    "kappa": 0.444444,
+    "pass": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(28)",
+   "name": "near-unanimous",
+   "inputs": {
+    "ratings": [
+     [
+      "I",
+      "I",
+      "I"
+     ],
+     [
+      "II",
+      "II",
+      "II"
+     ],
+     [
+      "III",
+      "III",
+      "III"
+     ],
+     [
+      "I",
+      "I",
+      "II"
+     ],
+     [
+      "Meta",
+      "Meta",
+      "Meta"
+     ]
+    ]
+   },
+   "expected": {
+    "P_i": [
+     1.0,
+     1.0,
+     1.0,
+     0.333333,
+     1.0
+    ],
+    "P_bar": 0.866667,
+    "p_j": {
+     "I": 0.333333,
+     "II": 0.266667,
+     "III": 0.2,
+     "Meta": 0.2
+    },
+    "P_e": 0.262222,
+    "kappa": 0.819277,
+    "pass": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(28)",
+   "name": "everyone picks one class → P̄_e = 1",
+   "inputs": {
+    "ratings": [
+     [
+      "II",
+      "II",
+      "II"
+     ],
+     [
+      "II",
+      "II",
+      "II"
+     ],
+     [
+      "II",
+      "II",
+      "II"
+     ]
+    ]
+   },
+   "expected": {
+    "P_i": [
+     1.0,
+     1.0,
+     1.0
+    ],
+    "P_bar": 1.0,
+    "p_j": {
+     "I": 0.0,
+     "II": 1.0,
+     "III": 0.0,
+     "Meta": 0.0
+    },
+    "P_e": 1.0,
+    "kappa": null,
+    "pass": false
+   },
+   "note": "κ = 0/0 → null"
+  },
+  {
+   "formula": "(28)",
+   "name": "competencies with < 2/3 seats agreeing with assigned class",
+   "inputs": {
+    "assigned": [
+     "I",
+     "II",
+     "III",
+     "II",
+     "Meta"
+    ],
+    "ratings": [
+     [
+      "I",
+      "I",
+      "I"
+     ],
+     [
+      "II",
+      "II",
+      "III"
+     ],
+     [
+      "III",
+      "III",
+      "III"
+     ],
+     [
+      "I",
+      "II",
+      "I"
+     ],
+     [
+      "Meta",
+      "Meta",
+      "III"
+     ]
+    ]
+   },
+   "expected": [
+    3
+   ],
+   "note": "SPEC L298; index 3 has 1/3 agreeing with II"
+  },
+  {
+   "formula": "(29)",
+   "name": "counts {'1': 2, '3': 3, '5': 4}",
+   "inputs": {
+    "counts": {
+     "1": 2,
+     "3": 3,
+     "5": 4
+    }
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(29)",
+   "name": "counts {'1': 2, '3': 5, '5': 2}",
+   "inputs": {
+    "counts": {
+     "1": 2,
+     "3": 5,
+     "5": 2
+    }
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(29)",
+   "name": "counts {'1': 2, '3': 2}",
+   "inputs": {
+    "counts": {
+     "1": 2,
+     "3": 2
+    }
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(29)",
+   "name": "counts {'1': 1, '3': 2, '5': 2}",
+   "inputs": {
+    "counts": {
+     "1": 1,
+     "3": 2,
+     "5": 2
+    }
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(30)",
+   "name": "valid matrix",
+   "inputs": {
+    "core": [
+     "C1",
+     "C2",
+     "C3"
+    ],
+    "outcomes": [
+     "O1",
+     "O2",
+     "O3"
+    ],
+    "links": [
+     [
+      "C1",
+      "O1"
+     ],
+     [
+      "C2",
+      "O1"
+     ],
+     [
+      "C2",
+      "O2"
+     ],
+     [
+      "C3",
+      "O2"
+     ],
+     [
+      "C1",
+      "O3"
+     ],
+     [
+      "C3",
+      "O3"
+     ]
+    ]
+   },
+   "expected": {
+    "constraint_30": true,
+    "outcomes_count_ok": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(30)",
+   "name": "C3 unlinked, O2 has 1 competency",
+   "inputs": {
+    "core": [
+     "C1",
+     "C2",
+     "C3"
+    ],
+    "outcomes": [
+     "O1",
+     "O2",
+     "O3"
+    ],
+    "links": [
+     [
+      "C1",
+      "O1"
+     ],
+     [
+      "C2",
+      "O1"
+     ],
+     [
+      "C2",
+      "O2"
+     ],
+     [
+      "C1",
+      "O3"
+     ],
+     [
+      "C2",
+      "O3"
+     ]
+    ]
+   },
+   "expected": {
+    "constraint_30": false,
+    "outcomes_count_ok": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(30)",
+   "name": "only 2 outcomes",
+   "inputs": {
+    "core": [
+     "C1",
+     "C2"
+    ],
+    "outcomes": [
+     "O1",
+     "O2"
+    ],
+    "links": [
+     [
+      "C1",
+      "O1"
+     ],
+     [
+      "C2",
+      "O1"
+     ],
+     [
+      "C1",
+      "O2"
+     ],
+     [
+      "C2",
+      "O2"
+     ]
+    ]
+   },
+   "expected": {
+    "constraint_30": true,
+    "outcomes_count_ok": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(31)",
+   "name": "E8 vs E1/E6/E10, same model as E6 (SPEC L536)",
+   "inputs": {
+    "validator": "E8",
+    "extractor": "E1",
+    "author": "E6",
+    "scorer": "E10",
+    "model_by_agent": {
+     "E1": "haiku",
+     "E6": "sonnet",
+     "E10": "haiku+sonnet+opus",
+     "E8": "sonnet"
+    }
+   },
+   "expected": {
+    "independent": true,
+    "same_model_warning": true
+   },
+   "note": ""
+  },
+  {
+   "formula": "(31)",
+   "name": "validator is the author",
+   "inputs": {
+    "validator": "E6",
+    "extractor": "E1",
+    "author": "E6",
+    "scorer": "E10"
+   },
+   "expected": {
+    "independent": false,
+    "same_model_warning": false
+   },
+   "note": ""
+  },
+  {
+   "formula": "(32)",
+   "name": "N_câu = 30",
+   "inputs": {
+    "n_sentences": 30
+   },
+   "expected": 3,
+   "note": "float trap: 0.1*30 = 3.0"
+  },
+  {
+   "formula": "(32)",
+   "name": "N_câu = 70",
+   "inputs": {
+    "n_sentences": 70
+   },
+   "expected": 7,
+   "note": "float trap: 0.1*70 = 7.0"
+  },
+  {
+   "formula": "(32)",
+   "name": "N_câu = 101",
+   "inputs": {
+    "n_sentences": 101
+   },
+   "expected": 11,
+   "note": ""
+  },
+  {
+   "formula": "(32)",
+   "name": "N_câu = 0",
+   "inputs": {
+    "n_sentences": 0
+   },
+   "expected": 0,
+   "note": ""
+  },
+  {
+   "formula": "(32)",
+   "name": "N_câu = 5",
+   "inputs": {
+    "n_sentences": 5
+   },
+   "expected": 1,
+   "note": ""
+  },
+  {
+   "formula": "(33)",
+   "name": "9 đạt + 1 đạt có điều kiện kèm kế hoạch",
+   "inputs": {
+    "variables": [
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat_co_dieu_kien_kem_ke_hoach"
+    ]
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(33)",
+   "name": "conditional without plan",
+   "inputs": {
+    "variables": [
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat_co_dieu_kien"
+    ]
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(33)",
+   "name": "only 9 variables",
+   "inputs": {
+    "variables": [
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat"
+    ]
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(33)",
+   "name": "one chưa đạt",
+   "inputs": {
+    "variables": [
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "dat",
+     "chua_dat"
+    ]
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level C, all data, G4 na (SPEC L336)",
+   "inputs": {
+    "level": "C",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "na",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    }
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level C, all data, G4 na (SPEC L336)",
+   "inputs": {
+    "level": "C",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "na",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    },
+    "G11": false,
+    "G12": false
+   },
+   "expected": "noi_bo",
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level B, all data",
+   "inputs": {
+    "level": "B",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    }
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level B, all data",
+   "inputs": {
+    "level": "B",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    },
+    "G11": false,
+    "G12": false
+   },
+   "expected": "san_pham_thi_truong",
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level B, G4 by deviation",
+   "inputs": {
+    "level": "B",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "deviation",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    }
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level B, G4 by deviation",
+   "inputs": {
+    "level": "B",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "deviation",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    },
+    "G11": false,
+    "G12": false
+   },
+   "expected": "noi_bo",
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level B, G2 by deviation (G2 not in the list)",
+   "inputs": {
+    "level": "B",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "deviation",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    }
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level B, G2 by deviation (G2 not in the list)",
+   "inputs": {
+    "level": "B",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "deviation",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    },
+    "G11": false,
+    "G12": false
+   },
+   "expected": "san_pham_thi_truong",
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level A, all data, G11 ∧ G12",
+   "inputs": {
+    "level": "A",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    }
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level A, all data, G11 ∧ G12",
+   "inputs": {
+    "level": "A",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    },
+    "G11": true,
+    "G12": true
+   },
+   "expected": "quyet_dinh_nhan_su",
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level A, all data, G12 missing",
+   "inputs": {
+    "level": "A",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    }
+   },
+   "expected": true,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level A, all data, G12 missing",
+   "inputs": {
+    "level": "A",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "data",
+     "G8": "data"
+    },
+    "G11": true,
+    "G12": false
+   },
+   "expected": "san_pham_thi_truong",
+   "note": ""
+  },
+  {
+   "formula": "(34)",
+   "name": "level A, G7 by deviation, G11 ∧ G12",
+   "inputs": {
+    "level": "A",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "deviation",
+     "G8": "data"
+    }
+   },
+   "expected": false,
+   "note": ""
+  },
+  {
+   "formula": "(35)",
+   "name": "level A, G7 by deviation, G11 ∧ G12",
+   "inputs": {
+    "level": "A",
+    "gates": {
+     "G0": "data",
+     "G1": "data",
+     "G2": "data",
+     "G3": "data",
+     "G4": "data",
+     "G5": "data",
+     "G6": "data",
+     "G7": "deviation",
+     "G8": "data"
+    },
+    "G11": true,
+    "G12": true
+   },
+   "expected": "noi_bo",
+   "note": ""
+  },
+  {
+   "formula": "(36)",
+   "name": "2026-11-19 tech=True",
+   "inputs": {
+    "release_date": "2026-11-19",
+    "tech_family": true
+   },
+   "expected": "2027-11-19",
+   "note": ""
+  },
+  {
+   "formula": "(36)",
+   "name": "2026-11-19 tech=False",
+   "inputs": {
+    "release_date": "2026-11-19",
+    "tech_family": false
+   },
+   "expected": "2028-11-19",
+   "note": ""
+  },
+  {
+   "formula": "(36)",
+   "name": "2028-02-29 tech=True",
+   "inputs": {
+    "release_date": "2028-02-29",
+    "tech_family": true
+   },
+   "expected": "2029-02-28",
+   "note": "29/02 + 12 tháng → clamp to 28/02"
+  },
+  {
+   "formula": "(36)",
+   "name": "2026-01-31 tech=False",
+   "inputs": {
+    "release_date": "2026-01-31",
+    "tech_family": false
+   },
+   "expected": "2028-01-31",
+   "note": ""
+  },
+  {
+   "formula": "(37)",
+   "name": "chain of 3 events (h_0 = '')",
+   "inputs": {
+    "events": [
+     {
+      "type": "RUN_STARTED",
+      "run": "r1"
+     },
+     {
+      "type": "BLOCK_DONE",
+      "block": "B0"
+     },
+     {
+      "type": "BLOCK_DONE",
+      "block": "B1"
+     }
+    ]
+   },
+   "expected": [
+    "4b4731fd100cd957578484265f6fbb81c5612f2f10e64e6b34e0a66d3732f002",
+    "8a884acd203789a452b642f1ac74c7afe96d0c007d094d027582afc0d8c4f084",
+    "d8dc865809b9875ba00b3631450250b42c87af81339278df787569fae2ed3786"
+   ],
+   "note": "Byte-exact match only with the same genesis/serialisation; see README."
+  },
+  {
+   "formula": "(37)",
+   "name": "tamper event #1 → first invalid index",
+   "inputs": {
+    "events": [
+     {
+      "type": "RUN_STARTED",
+      "run": "r1"
+     },
+     {
+      "type": "BLOCK_DONE",
+      "block": "B9"
+     },
+     {
+      "type": "BLOCK_DONE",
+      "block": "B1"
+     }
+    ],
+    "hashes": [
+     "4b4731fd100cd957578484265f6fbb81c5612f2f10e64e6b34e0a66d3732f002",
+     "8a884acd203789a452b642f1ac74c7afe96d0c007d094d027582afc0d8c4f084",
+     "d8dc865809b9875ba00b3631450250b42c87af81339278df787569fae2ed3786"
+    ]
+   },
+   "expected": 1,
+   "note": "Structural: modifying an old event is detected at that index."
+  },
+  {
+   "formula": "(37)",
+   "name": "untampered chain verifies",
+   "inputs": {
+    "events": [
+     {
+      "type": "RUN_STARTED",
+      "run": "r1"
+     },
+     {
+      "type": "BLOCK_DONE",
+      "block": "B0"
+     },
+     {
+      "type": "BLOCK_DONE",
+      "block": "B1"
+     }
+    ],
+    "hashes": [
+     "4b4731fd100cd957578484265f6fbb81c5612f2f10e64e6b34e0a66d3732f002",
+     "8a884acd203789a452b642f1ac74c7afe96d0c007d094d027582afc0d8c4f084",
+     "d8dc865809b9875ba00b3631450250b42c87af81339278df787569fae2ed3786"
+    ]
+   },
+   "expected": null,
+   "note": ""
+  }
+ ]
+}

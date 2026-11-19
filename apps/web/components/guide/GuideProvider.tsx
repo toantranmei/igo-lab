@@ -17,7 +17,8 @@ const autoOpened = new Set<string>();
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export default function GuideProvider({ children }: { children: React.ReactNode }) {
+/** `resume`: reopen a pending block's guide on page load (the old production line). The new Live screens never wait on it. */
+export default function GuideProvider({ children, resume = true }: { children: React.ReactNode; resume?: boolean }) {
   const { sessionId, source, state, refresh, toast } = useSession();
   const [viewer, setViewerState] = useState<ViewerState | null>(null);
   const [auto, setAuto] = useState(false);
@@ -371,12 +372,12 @@ export default function GuideProvider({ children }: { children: React.ReactNode 
   // Reload resumes mid-block: reopen the pending guide at its saved cursor, once per page load.
   useEffect(() => {
     const p = state?.pending;
-    if (!p || viewerRef.current) return;
+    if (!resume || !p || viewerRef.current) return;
     const key = `${sessionId}:${state.runNo}:${p.id}`;
     if (autoOpened.has(key)) return;
     autoOpened.add(key);
     open(p.id, false, p.cursor, p.committed);
-  }, [state, sessionId, open]);
+  }, [state, sessionId, open, resume]);
 
   // A guide that is started by the user counts as opened for this page load.
   useEffect(() => {

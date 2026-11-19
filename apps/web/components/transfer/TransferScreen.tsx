@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { SessionListItem } from '@cl/contract';
-import { Sidebar } from '@/components/shell/Shell';
+import { WorkspaceShell } from '@/components/shell/AppHeader';
 import { ApiError, api } from '@/lib/live-source';
 
 interface Exp { id: string; kind: string; file_name: string; created_at: string; manifest: { counts: Record<string, number>; scope: { completeness: string }; redaction: { metadata_only: boolean; redacted_refs: string[] }; release_version: string } }
@@ -57,14 +57,8 @@ export default function TransferScreen() {
     } catch (e) { setErr(msg(e)); } finally { setBusy(false); }
   };
   return (
-    <>
-      <Sidebar sessionId={null} tab="transfer" />
-      <main>
-        <header><span>Competence Lab <span className="dim">/ Xuất và khôi phục</span></span></header>
+    <WorkspaceShell active="transfer" title="Xuất và khôi phục" note="Áp dụng cho dữ liệu Live trên máy chủ. Gói không chứa mật khẩu, token hay đường dẫn máy chủ.">
         <section className="tab active" id="transfer">
-          <div className="eyebrow">CHUYỂN HẠ TẦNG</div>
-          <h2>Xuất và khôi phục</h2>
-          <p className="dim">Áp dụng cho dữ liệu Live trên máy chủ. Phiên mẫu xuất JSON ngay trong từng tab của nó. Gói không chứa mật khẩu, token hay đường dẫn máy chủ.</p>
           {err ? <p className="cl-err" role="alert" data-testid="transfer-error">{err}</p> : null}
           {note ? <p className="cl-ok" role="status" data-testid="transfer-note">{note}</p> : null}
           <div className="cl-grid2">
@@ -126,7 +120,6 @@ export default function TransferScreen() {
             ) : null}
           </div>
         </section>
-      </main>
-    </>
+    </WorkspaceShell>
   );
 }

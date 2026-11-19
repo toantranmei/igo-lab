@@ -11,11 +11,12 @@ const slug = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/
  * (roles ↔ competencies, cross-industry matrix, role comparison). Weights come straight from the
  * published frameworks; score inputs are absent because Live has no importance/criticality formula yet.
  */
-export async function liveCatalog(db: Db, workspaceId: string, sessionId: string | null) {
+/** `atRelease`: P3.12 "Xem tại bản" — show the dictionary as it was in that release. */
+export async function liveCatalog(db: Db, workspaceId: string, sessionId: string | null, atRelease?: string | null) {
   const run = sessionId ? await currentRun(db, sessionId) : null;
   const latest = await latestRelease(db, workspaceId);
   const [mine] = run ? await db.select().from(t.release).where(and(eq(t.release.workspaceId, workspaceId), eq(t.release.runId, run.id))) : [];
-  const releaseId = mine?.releaseId ?? (run ? (run.snapshot as RunSnapshot).base_release_id : latest?.releaseId ?? null);
+  const releaseId = atRelease || (mine?.releaseId ?? (run ? (run.snapshot as RunSnapshot).base_release_id : latest?.releaseId ?? null));
   const d = await loadDictionary(db, workspaceId, releaseId);
   const cIds = new Set(d.C.map((c) => c.id));
   const frames = d.R.map((f) => ({ ...f, reqs: f.data.requirements.filter((q) => cIds.has(q.competency_id)) }));

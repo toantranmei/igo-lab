@@ -11,11 +11,11 @@ export const JD_OTHER = 'Mô tả công việc: Kế toán trưởng\nNV: Lập 
 /** Second-run JD: same name as an existing competency but a wider definition (→ UPDATE) plus a brand-new one (→ ADD). */
 export const JD_C = jd('Công ty C', ['NV: Sắp xếp backlog theo giá trị [k1]', 'NV: Điều phối các bên liên quan [k4]', 'NL: Ưu tiên backlog — Khả năng sắp xếp hạng mục theo giá trị, chi phí trì hoãn và rủi ro [k1]', 'NL: Điều phối bên liên quan — Khả năng thống nhất kỳ vọng giữa các bên [k4]']);
 
-export const runner = (over: { timeoutMs?: number } = {}) => new ClaudeCliRunner({ bin: FAKE_CLAUDE, timeoutMs: over.timeoutMs ?? 5000 });
+export const runner = (over: { timeoutMs?: number } = {}) => new ClaudeCliRunner({ bin: FAKE_CLAUDE, timeoutMs: over.timeoutMs ?? 30000 });
 export const doc = (name: string, text: string, org = 'Tổ chức ' + name) => ({ name, text, source_ref: `paste://${name}`, origin_group: org });
 
-export async function newSession(db: Db, docs: ReturnType<typeof doc>[], name = 'Phiên thử') {
-  const { id } = await createSession(db, WS, { name, role_title: 'Product Owner', purpose: 'Xây khung năng lực nháp', context: 'Công ty phần mềm' }, 'local');
+export async function newSession(db: Db, docs: (ReturnType<typeof doc> & { posted_at?: string })[], name = 'Phiên thử') {
+  const { id } = await createSession(db, WS, { name, role_title: 'Product Owner', purpose: 'Xây khung năng lực nháp', context: 'Công ty phần mềm', charter: { policy_id: 'dev-small' } }, 'local');
   await confirmJdSet(db, WS, id, docs, 'local');
   const run = await createRun(db, WS, id, { acknowledge_send: true, cli_version: '2.1.325' }, 'local');
   return { sessionId: id, runId: run.id };

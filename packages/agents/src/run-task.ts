@@ -19,6 +19,18 @@ export interface TaskContext {
   cliVersion?: string | null;
   maxCallsPerRun?: number;
   maxInputChars?: number;
+  /** Counters shared by every call of one block attempt (calls refused by the breaker are counted, not logged one by one). */
+  stats?: { blocked: number; inflight?: Set<Promise<unknown>> };
+  /** Aborted when the block stops; calls not yet started are dropped instead of spawning `claude`. */
+  abort?: AbortController;
+  /** Budget and anomaly checks around every real CLI call (implemented by the pipeline). */
+  guard?: CallGuard;
+}
+
+/** Called before and after each real CLI call. `before` throws to refuse the call; its return value is passed to `after`. */
+export interface CallGuard {
+  before(task: TaskName, promptChars: number): number;
+  after(reserved: number, usage: unknown): void;
 }
 
 export interface TaskResult<O> {
@@ -39,6 +51,14 @@ export function taskKey(name: TaskName, tm: TaskModel, inputCanonical: string, r
   return sha256(canonicalJson({ task_id: task.id, prompt_version: task.promptVersion, schema_version: task.schemaVersion, system_sha: sha256(task.system), model: tm.model, effort: tm.effort, rerun_no: rerunNo, input: inputCanonical }));
 }
 
+/** Splits the input into the part shared by every call of a block (system prompt, cacheable) and the rest (user message). */
+export function promptParts(task: TaskDef, input: Record<string, unknown>): { system: string; userInput: string } {
+  if (!task.shared?.length) return { system: task.system, userInput: canonicalJson(input) };
+  const shared = Object.fromEntries(task.shared.filter((k) => k in input).map((k) => [k, input[k]]));
+  const rest = Object.fromEntries(Object.entries(input).filter(([k]) => !task.shared!.includes(k)));
+  return { system: `${task.system}\n\n<shared_input>\n${canonicalJson(shared)}\n</shared_input>`, userInput: canonicalJson(rest) };
+}
+
 const userPrompt = (inputCanonical: string, repair?: string[]) =>
   `<task_input>\n${inputCanonical}\n</task_input>` +
   (repair?.length ? `\n\nLần trả lời trước KHÔNG hợp lệ vì:\n${repair.slice(0, 12).map((e) => '- ' + e).join('\n')}\nHãy trả lại JSON đúng schema và sửa đúng các lỗi trên.` : '');
@@ -57,6 +77,11 @@ export async function runTask<K extends TaskName>(ctx: TaskContext, name: K, raw
   const key = taskKey(name, tm, inputCanonical, ctx.rerun?.[name] ?? 0);
   const base = { workspaceId: ctx.workspaceId, runId: ctx.runId ?? null, attemptId: ctx.attemptId ?? null, taskId: task.id, taskKey: key, model: tm.model, effort: tm.effort, promptVersion: task.promptVersion, schemaVersion: task.schemaVersion, cliVersion: ctx.cliVersion ?? null };
 
+  const stopped = () => {
+    const reason = ctx.abort?.signal.reason;
+    return reason instanceof AppError ? reason : new AppError('CANCELLED', `${task.id}: bước đã dừng nên lời gọi bị hủy.`, 409, { task_id: task.id });
+  };
+  if (ctx.abort?.signal.aborted) throw stopped();
   if (!ctx.bypassCache) {
     const [hit] = await ctx.db.select().from(t.agentResult).where(eq(t.agentResult.taskKey, key)).limit(1);
     if (hit) {
@@ -75,27 +100,46 @@ export async function runTask<K extends TaskName>(ctx: TaskContext, name: K, raw
   const schema = outputJsonSchema(task);
   let repair: string[] | undefined;
   let lastError = '';
+  const parts = promptParts(task, input as Record<string, unknown>);
+  const call = async (user: string) => {
+    const reserved = ctx.guard?.before(name, parts.system.length + user.length) ?? 0;
+    const p = ctx.runner.run({ system: parts.system, user, schema, model: tm.model, effort: tm.effort, signal: ctx.abort?.signal });
+    // the attempt waits for calls still in flight before it records a stop (their tokens count)
+    ctx.stats?.inflight?.add(p);
+    const r = await p.finally(() => ctx.stats?.inflight?.delete(p));
+    ctx.guard?.after(reserved, r.blocked ? null : r.usage);
+    return r;
+  };
   for (let attempt = 0; attempt < 2; attempt++) {
     const callId = newId('call');
-    let res = await ctx.runner.run({ system: task.system, user: userPrompt(inputCanonical, repair), schema, model: tm.model, effort: tm.effort });
-    // transient CLI failures: one retry with a short back-off
-    if (!res.ok && (res.errorCode === 'CLI_ERROR' || res.errorCode === 'TIMEOUT' || res.errorCode === 'NO_STRUCTURED_OUTPUT')) {
+    const user = userPrompt(parts.userInput, repair);
+    let res = await call(user);
+    // transient CLI failures: one retry with a short back-off (never for limits, login, or calls the breaker refused)
+    if (!res.ok && !res.blocked && (res.errorCode === 'CLI_ERROR' || res.errorCode === 'TIMEOUT' || res.errorCode === 'NO_STRUCTURED_OUTPUT')) {
+      // the failed first try spent tokens too: record it before retrying
+      await ctx.db.insert(t.agentCall).values({ id: newId('call'), ...base, cacheHit: false, status: res.errorCode === 'TIMEOUT' ? 'TIMEOUT' : 'CLI_ERROR', durationMs: res.durationMs, usage: res.usage ?? null, costUsd: res.costUsd ?? null, error: scrubPaths(`${res.errorCode} (thử lại): ${res.errorMessage ?? ''}`).slice(0, 500) });
       await new Promise((r) => setTimeout(r, Number(process.env.AGENT_RETRY_DELAY_MS ?? 1500)));
-      const again = await ctx.runner.run({ system: task.system, user: userPrompt(inputCanonical, repair), schema, model: tm.model, effort: tm.effort });
+      const again = await call(user);
       if (again.ok || res.errorCode !== 'TIMEOUT') res = again;
     }
+    if (res.errorCode === 'CANCELLED') throw stopped();
     if (!res.ok) {
-      const status = res.errorCode === 'TIMEOUT' ? 'TIMEOUT' : 'CLI_ERROR';
-      await ctx.db.insert(t.agentCall).values({ id: callId, ...base, cacheHit: false, status, durationMs: res.durationMs, usage: res.usage ?? null, costUsd: res.costUsd ?? null, error: scrubPaths(`${res.errorCode}: ${res.errorMessage ?? ''}`).slice(0, 500) });
+      if (res.blocked) {
+        if (ctx.stats) ctx.stats.blocked++;
+      } else {
+        const status = res.errorCode === 'TIMEOUT' ? 'TIMEOUT' : res.errorCode === 'QUOTA' ? 'QUOTA' : 'CLI_ERROR';
+        await ctx.db.insert(t.agentCall).values({ id: callId, ...base, cacheHit: false, status, durationMs: res.durationMs, usage: res.usage ?? null, costUsd: res.costUsd ?? null, error: scrubPaths(`${res.errorCode}: ${res.errorMessage ?? ''}`).slice(0, 500) });
+      }
+      if (res.errorCode === 'QUOTA') throw new AppError('AGENT_QUOTA', `${task.id}: đã chạm hạn mức Claude.`, 429, { task_id: task.id, until: res.until ?? null, blocked: !!res.blocked }, ['SCHEDULE', 'RESUME']);
       const code = res.errorCode === 'CLI_NOT_FOUND' ? 'AGENT_CLI_UNAVAILABLE' : res.errorCode === 'NOT_LOGGED_IN' ? 'AGENT_NOT_LOGGED_IN' : res.errorCode === 'TIMEOUT' ? 'AGENT_TIMEOUT' : 'AGENT_CLI_ERROR';
-      throw new AppError(code, `${task.id}: ${res.errorMessage ?? res.errorCode}`, 502, { task_id: task.id, call_id: callId }, ['RETRY']);
+      throw new AppError(code, `${task.id}: ${res.errorMessage ?? res.errorCode}`, 502, { task_id: task.id, ...(res.blocked ? { blocked: true, until: res.until ?? null } : { call_id: callId }) }, ['RETRY']);
     }
     const parsed = task.output.safeParse(res.structured);
     const errors = parsed.success ? task.check(input, parsed.data) : parsed.error.issues.map((i) => `${i.path.join('.') || '(gốc)'}: ${i.message}`);
     if (parsed.success && !errors.length) {
       const output = task.normalize(input, parsed.data) as TaskOutput<K>;
       await ctx.db.insert(t.agentCall).values({ id: callId, ...base, cacheHit: false, status: 'OK', durationMs: res.durationMs, usage: res.usage ?? null, costUsd: res.costUsd ?? null });
-      await ctx.db.insert(t.agentResult).values({ taskKey: key, taskId: task.id, inputCanonical, output, firstCallId: callId }).onConflictDoNothing();
+      await ctx.db.insert(t.agentResult).values({ taskKey: key, taskId: task.id, inputCanonical: task.sensitive ? `sha256:${sha256(inputCanonical)}` : inputCanonical, output, firstCallId: callId }).onConflictDoNothing();
       await appendEvent(ctx.db, { workspaceId: ctx.workspaceId, type: 'AGENT_CALL', actor: `agent:${task.agent}`, sessionId: ctx.sessionId, runId: ctx.runId, attemptId: ctx.attemptId, block: task.block, versions: { task_id: task.id, model: tm.model, effort: tm.effort, prompt: task.promptVersion, schema: task.schemaVersion, cli: ctx.cliVersion ?? null }, inputHash: sha256(inputCanonical), outputHash: sha256(canonicalJson(output)), payload: { call_id: callId, task_key: key, repaired: attempt > 0 } });
       return { output, callId, cacheHit: false, taskKey: key, model: tm.model, effort: tm.effort };
     }

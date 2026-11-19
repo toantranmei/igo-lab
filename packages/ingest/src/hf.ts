@@ -26,6 +26,7 @@ export function parseDatasetId(input: string): string {
 
 const TITLE = ['job_title', 'title', 'position', 'job_name', 'job_position'];
 const ORG = ['company_name', 'company', 'employer', 'organization'];
+const DATE = ['posted_date', 'date_posted', 'post_date', 'posting_date', 'published_at', 'publish_date', 'created_at', 'created_date', 'date'];
 /** Columns that make up the JD text, in reading order, with the heading shown in the assembled document. */
 const BODY: [RegExp, string][] = [
   [/^(job_)?description$|^responsibilit|^duties$/i, 'Mô tả công việc'],
@@ -36,14 +37,14 @@ const BODY: [RegExp, string][] = [
   [/^experience(_required|_level)?$/i, 'Kinh nghiệm'],
   [/^languages?(_required)?$/i, 'Ngoại ngữ'],
 ];
-export interface HfColumns { title: string; org: string | null; body: { column: string; heading: string }[] }
+export interface HfColumns { title: string; org: string | null; body: { column: string; heading: string }[]; date?: string | null }
 export function detectColumns(names: string[]): HfColumns {
   const lower = new Map(names.map((n) => [n.toLowerCase(), n]));
   const pick = (c: string[]) => c.map((x) => lower.get(x)).find(Boolean) ?? null;
   const title = pick(TITLE);
   const body = BODY.flatMap(([re, heading]) => names.filter((n) => re.test(n)).map((column) => ({ column, heading })));
   if (!title || !body.length) throw new AppError('HF_SCHEMA_UNSUPPORTED', `Dataset không có cột chức danh và cột mô tả nhận diện được. Các cột: ${names.join(', ')}.`, 422, { columns: names });
-  return { title, org: pick(ORG), body };
+  return { title, org: pick(ORG), body, date: pick(DATE) };
 }
 const clean = (v: unknown) => (v === null || v === undefined ? '' : String(v).replace(/\r\n?/g, '\n').trim());
 const EMPTY = /^(n\/?a|none|null|không( có| yêu cầu)?|-+)?$/i;
@@ -53,7 +54,13 @@ export function rowToJd(row: Record<string, unknown>, cols: HfColumns) {
   const org = cols.org ? clean(row[cols.org]) : '';
   const parts = cols.body.map((b) => ({ heading: b.heading, text: clean(row[b.column]) })).filter((p) => !EMPTY.test(p.text));
   const text = [`Mô tả công việc: ${title}${org ? ` — ${org}` : ''}`, ...parts.map((p) => `${p.heading}:\n${p.text}`)].join('\n\n');
-  return { title, org, text };
+  return { title, org, text, posted_at: cols.date ? toIsoDate(row[cols.date]) : null };
+}
+/** A dataset date (string, number or Date) as YYYY-MM-DD, or null when it cannot be read. */
+export function toIsoDate(v: unknown): string | null {
+  if (v === null || v === undefined || v === '') return null;
+  const d = v instanceof Date ? v : typeof v === 'number' || typeof v === 'bigint' ? new Date(Number(v) > 1e11 ? Number(v) : Number(v) * 1000) : new Date(String(v).trim());
+  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }
 
 async function get(url: string): Promise<any> {
@@ -182,11 +189,11 @@ export async function localTitles(ds: LocalDataset): Promise<string[]> {
 /** Accent- and case-insensitive form used to match Vietnamese typed with or without diacritics. */
 export const foldTitle = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
 
-export interface HfHit { row: number; title: string; org: string; text: string; chars: number; source_ref: string }
+export interface HfHit { row: number; title: string; org: string; text: string; chars: number; source_ref: string; posted_at: string | null }
 /** Full JD text of specific rows, read from the local copy. */
 export async function localRows(ds: LocalDataset, rows: number[]): Promise<HfHit[]> {
   const want = [...new Set(rows.filter((r) => Number.isInteger(r) && r >= 0 && r < ds.rows))].slice(0, 200);
-  const columns = [...new Set([ds.columns.title, ...(ds.columns.org ? [ds.columns.org] : []), ...ds.columns.body.map((b) => b.column)])];
+  const columns = [...new Set([ds.columns.title, ...(ds.columns.org ? [ds.columns.org] : []), ...(ds.columns.date ? [ds.columns.date] : []), ...ds.columns.body.map((b) => b.column)])];
   const hits: HfHit[] = [];
   for (const row of want) {
     let start = 0;

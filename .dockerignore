@@ -3,7 +3,8 @@
 .git
 .env
 .env.local
-data
+data/*
+!data/reference
 .e2e-data
 test-results
 playwright-report

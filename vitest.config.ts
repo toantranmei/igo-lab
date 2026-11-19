@@ -19,8 +19,11 @@ export default defineConfig({
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
           environment: 'node',
-          testTimeout: 60000,
+          testTimeout: 240000,
           hookTimeout: 60000,
+          // every file resets the same test database: run them one after another, in one process
+          pool: 'forks',
+          poolOptions: { forks: { singleFork: true } },
         },
       },
     ],

@@ -22,6 +22,8 @@ export interface IData {
   competency_id: string;
   statement: string;
   segment_ids: string[];
+  /** P2/P5: indicator level 1, 3 or 5 (absent on indicators written before P2). */
+  level?: '1' | '3' | '5';
   screening?: string;
 }
 export interface WData {
@@ -40,6 +42,10 @@ export interface RData {
   session_id: string | null;
   family?: string | null;
   industry?: string | null;
+  /** P2: release tier (34)–(35), review date (36), owner (G8). */
+  tier?: 'INTERNAL' | 'MARKET' | 'HR_DECISION';
+  review_date?: string;
+  owner?: string | null;
   requirements: {
     competency_id: string;
     competency_version: number;

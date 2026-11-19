@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Competence Lab · Wireframe</title>
+<style>
+:root {
+  --bg: #f4f4f1; --paper: #fff; --ink: #1d1d1b; --ink2: #5c5b57; --ink3: #9a9893;
+  --line: #d9d8d3; --line2: #bdbbb5; --fill: #efeee9; --fill2: #e4e3dd;
+  --accent: #2a78d6; --accent-soft: #e6effb; --ok: #1a8a5c; --ok-soft: #e3f3ec;
+  --warn: #b4580f; --warn-soft: #fbeee2; --bad: #b3261e; --bad-soft: #fbe7e5;
+  --ai: #6a4fc4; --ai-soft: #eee9fb; --note: #fff6c9; --note-line: #e8d77a;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.5 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+a { color: var(--accent); text-decoration: none; cursor: pointer; }
+.proto { background: var(--ink); color: #d8d7d2; padding: 14px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+.proto h1 { font-size: 13px; color: #fff; margin: 0 0 2px; letter-spacing: .4px; }
+.proto .sub0 { font-size: 11px; color: #9a9893; margin-bottom: 12px; }
+.proto h6 { font-size: 10.5px; letter-spacing: .8px; color: #8a8985; margin: 14px 0 4px; font-weight: 700; }
+.proto button { display: block; width: 100%; text-align: left; background: transparent; color: #d8d7d2; border: 0; border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.proto button:hover { background: #2e2d2a; }
+.proto button.on { background: #fff; color: var(--ink); font-weight: 600; }
+.proto .tog { display: flex; gap: 6px; align-items: center; font-size: 11.5px; margin-top: 14px; padding-top: 10px; border-top: 1px solid #3a3935; cursor: pointer; }
+.proto .crumb { font-size: 11px; color: #9a9893; margin-top: 10px; }
+main { padding: 18px 22px 40px; min-width: 0; }
+.screen { display: none; } .screen.on { display: block; }
+.intro { margin-bottom: 14px; } .intro h2 { margin: 0 0 4px; font-size: 19px; } .intro p { margin: 0; color: var(--ink2); max-width: 900px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 18px; align-items: start; }
+.notes { position: sticky; top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.note { background: var(--note); border: 1px solid var(--note-line); border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+.note.cut { background: var(--bad-soft); border-color: #f0c2bd; } .note.keep { background: var(--ok-soft); border-color: #b8dfcc; } .note.go { background: var(--accent-soft); border-color: #a9c8ef; }
+.note h4 { margin: 0 0 2px; font-size: 12px; } .note p { margin: 0; color: var(--ink2); }
+[data-go] { cursor: pointer; }
+body.hot [data-go] { outline: 1.5px dashed var(--accent); outline-offset: 1px; }
+.app { background: var(--paper); border: 1px solid var(--line2); border-radius: 10px; overflow: hidden; }
+.bar { display: flex; align-items: center; gap: 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.brand { font-weight: 800; letter-spacing: .4px; font-size: 12px; }
+.nav { display: flex; gap: 2px; } .nav span { padding: 5px 10px; border-radius: 6px; color: var(--ink2); font-size: 12.5px; } .nav span.on { background: var(--fill2); color: var(--ink); font-weight: 600; }
+.sp { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line2); border-radius: 999px; padding: 1px 8px; font-size: 11.5px; color: var(--ink2); white-space: nowrap; background: var(--paper); }
+.chip.ok { color: var(--ok); border-color: #9fd3bc; background: var(--ok-soft); } .chip.run { color: var(--accent); border-color: #a9c8ef; background: var(--accent-soft); }
+.chip.warn { color: var(--warn); border-color: #ecc39d; background: var(--warn-soft); } .chip.bad { color: var(--bad); border-color: #eeb3ad; background: var(--bad-soft); } .chip.mute { background: var(--fill); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.body { padding: 14px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); background: var(--paper); border-radius: 7px; padding: 5px 11px; font-size: 12.5px; font-weight: 600; white-space: nowrap; color: var(--ink); }
+.btn.pri { background: var(--ink); color: #fff; border-color: var(--ink); } .btn.ghost { border-color: transparent; color: var(--ink2); font-weight: 500; }
+.btn.okb { background: var(--ok); border-color: var(--ok); color: #fff; } .btn.badb { color: var(--bad); border-color: #eeb3ad; }
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.muted { color: var(--ink2); } .faint { color: var(--ink3); } .small { font-size: 11.5px; }
+.mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11.5px; }
+h3 { font-size: 15px; margin: 0; }
+h5 { font-size: 10.5px; letter-spacing: .7px; text-transform: uppercase; color: var(--ink3); margin: 0 0 8px; font-weight: 700; }
+.card { border: 1px solid var(--line); border-radius: 8px; background: var(--paper); } .card.pad { padding: 11px 13px; }
+.banner { display: flex; gap: 12px; align-items: center; border-radius: 8px; padding: 9px 13px; margin-bottom: 12px; flex-wrap: wrap; }
+.banner.warn { background: var(--warn-soft); border: 1px solid #ecc39d; } .banner.bad { background: var(--bad-soft); border: 1px solid #eeb3ad; }
+.banner.ok { background: var(--ok-soft); border: 1px solid #9fd3bc; } .banner.run { background: var(--accent-soft); border: 1px solid #a9c8ef; }
+.banner .t { font-weight: 700; }
+.kpis { display: grid; grid-template-columns: repeat(6, 1fr); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 12px; }
+.kpis > div { padding: 8px 11px; border-left: 1px solid var(--line); } .kpis > div:first-child { border-left: 0; }
+.kpis b { display: block; font-size: 16px; font-variant-numeric: tabular-nums; } .kpis span { font-size: 11px; color: var(--ink3); }
+.steps { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.st { display: grid; grid-template-columns: 22px minmax(0, 1fr) 150px 62px 66px 62px; gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.st:first-child { border-top: 0; } .st:not(.head):hover { background: #fafaf8; }
+.st.head { background: var(--fill); font-size: 10.5px; color: var(--ink3); font-weight: 700; letter-spacing: .4px; padding: 6px 12px; }
+.st.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.st .nm b { font-weight: 600; } .st .nm small { display: block; color: var(--ink2); font-size: 11.5px; }
+.st .r { text-align: right; font-size: 12px; color: var(--ink2); }
+.ic { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: none; }
+.ic.ok { background: var(--ok); color: #fff; } .ic.run { background: var(--accent); color: #fff; } .ic.idle { border: 1.5px solid var(--line2); }
+.ic.bad { background: var(--bad); color: #fff; } .ic.warn { background: var(--warn); color: #fff; }
+.subs { grid-column: 2 / -1; display: flex; flex-direction: column; gap: 5px; margin-top: 4px; }
+.subrow { display: grid; grid-template-columns: 1fr 120px 70px; gap: 8px; align-items: center; font-size: 12px; }
+.prog { height: 6px; border-radius: 3px; background: var(--fill2); overflow: hidden; } .prog i { display: block; height: 100%; background: var(--accent); border-radius: 3px; } .prog.ok i { background: var(--ok); }
+.tabs { display: flex; gap: 2px; padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--fill); flex-wrap: wrap; }
+.tabs span { padding: 7px 10px; font-size: 12.5px; color: var(--ink2); border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; }
+.tabs span.on { color: var(--ink); font-weight: 600; border-bottom-color: var(--ink); background: var(--paper); }
+.pane { display: none; } .pane.on { display: block; }
+.pbody { padding: 12px 14px; }
+.tl { position: relative; padding-left: 22px; } .tl::before { content: ""; position: absolute; left: 8px; top: 4px; bottom: 4px; width: 2px; background: var(--line); }
+.ev { position: relative; margin-bottom: 12px; }
+.ev::before { content: ""; position: absolute; left: -19px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--paper); border: 2px solid var(--ink3); }
+.ev.ok::before { border-color: var(--ok); background: var(--ok); } .ev.run::before { border-color: var(--accent); background: var(--accent); }
+.ev .h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; } .ev .h b { font-weight: 600; }
+.kind { font-size: 10px; font-weight: 700; letter-spacing: .5px; padding: 1px 6px; border-radius: 4px; background: var(--fill2); color: var(--ink2); }
+.kind.ai { background: var(--ai-soft); color: var(--ai); } .kind.chk { background: #fdeee3; color: var(--warn); } .kind.gate { background: var(--ok-soft); color: var(--ok); }
+.io { display: grid; grid-template-columns: 1fr 16px 1fr; gap: 6px; align-items: center; margin-top: 5px; }
+.io .box { background: var(--fill); border-radius: 6px; padding: 5px 8px; font-size: 11.5px; color: var(--ink2); } .io .box b { color: var(--ink); }
+.arrow { text-align: center; color: var(--ink3); }
+.fx { margin-top: 6px; background: var(--accent-soft); border-left: 3px solid var(--accent); padding: 5px 9px; border-radius: 0 6px 6px 0; font-family: "Times New Roman", serif; font-style: italic; font-size: 13px; }
+.fx small { font-family: -apple-system, Helvetica, sans-serif; font-style: normal; color: var(--ink2); font-size: 11px; display: block; }
+.fx .no { float: right; font-style: normal; font-family: -apple-system, Helvetica, sans-serif; font-size: 11px; color: var(--accent); font-weight: 700; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+th { text-align: left; font-size: 10.5px; color: var(--ink3); font-weight: 700; letter-spacing: .3px; padding: 6px 8px; border-bottom: 1px solid var(--line2); background: var(--fill); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; } td.n, th.n { text-align: right; } tr.selr td { background: var(--accent-soft); }
+.sel { border: 1px solid var(--line2); border-radius: 6px; padding: 3px 8px; font-size: 12px; background: var(--paper); color: var(--ink2); white-space: nowrap; }
+.costbar { display: flex; height: 14px; border-radius: 4px; overflow: hidden; gap: 2px; margin: 6px 0 4px; } .costbar i { display: block; height: 100%; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .g4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.field { margin-bottom: 9px; } .field label { display: block; font-size: 11.5px; color: var(--ink2); margin-bottom: 3px; font-weight: 600; }
+.inp { border: 1px solid var(--line2); border-radius: 6px; padding: 5px 9px; min-height: 29px; color: var(--ink3); background: var(--paper); font-size: 12.5px; }
+.seg { display: inline-flex; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; } .seg span { padding: 4px 10px; font-size: 12px; color: var(--ink2); border-left: 1px solid var(--line2); cursor: pointer; } .seg span:first-child { border-left: 0; } .seg span.on { background: var(--ink); color: #fff; }
+.drop { border: 1.5px dashed var(--line2); border-radius: 8px; padding: 16px; text-align: center; color: var(--ink2); background: var(--fill); }
+.checklist div { display: flex; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; } .checklist div:last-child { border-bottom: 0; }
+.foot { display: flex; gap: 10px; align-items: center; justify-content: flex-end; border-top: 1px solid var(--line); padding: 11px 14px; background: var(--fill); flex-wrap: wrap; }
+.diff td.add { color: var(--ok); font-weight: 600; } .diff td.chg { color: var(--accent); font-weight: 600; } .diff td.maj { color: var(--bad); font-weight: 700; }
+.vtl { display: flex; align-items: stretch; overflow-x: auto; margin: 4px 0; } .vnode { min-width: 140px; border: 1px solid var(--line2); border-radius: 8px; padding: 7px 10px; background: var(--paper); } .vnode.cur { border-color: var(--ink); box-shadow: 0 0 0 2px var(--fill2); } .vnode b { display: block; font-size: 14px; } .vlink { min-width: 30px; display: flex; align-items: center; justify-content: center; color: var(--ink3); }
+.ph { background: repeating-linear-gradient(45deg, var(--fill) 0 6px, var(--fill2) 6px 12px); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--ink3); font-size: 11.5px; text-align: center; padding: 6px; }
+.hbar { display: grid; grid-template-columns: 150px 1fr 54px; gap: 8px; align-items: center; font-size: 11.5px; margin: 3px 0; }
+.hbar .tr { height: 11px; background: var(--fill); border-radius: 0 3px 3px 0; position: relative; } .hbar .tr i { display: block; height: 100%; background: var(--c1); border-radius: 0 3px 3px 0; }
+.hbar .tr .th { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1.5px dashed var(--bad); }
+.hbar .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink2); }
+.hbar.lowv .tr i { background: var(--c2); }
+.funnel div { margin: 3px auto; text-align: center; color: #fff; font-size: 12px; padding: 5px; border-radius: 4px; background: var(--c1); white-space: nowrap; }
+.stack { display: flex; height: 22px; border-radius: 4px; overflow: hidden; gap: 2px; } .stack i { display: flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-style: normal; white-space: nowrap; overflow: hidden; }
+.gauge { height: 12px; background: var(--fill); border-radius: 6px; position: relative; margin: 6px 0 2px; } .gauge i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--c3); border-radius: 6px; }
+.big { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cm { display: grid; grid-template-columns: 70px repeat(3, 1fr); gap: 2px; font-size: 11px; text-align: center; } .cm div { padding: 5px 2px; background: var(--fill); border-radius: 3px; } .cm .d { background: #cfe1f7; font-weight: 700; } .cm .h { background: transparent; color: var(--ink3); font-weight: 700; }
+.heat { display: grid; gap: 2px; font-size: 10px; } .heat div { height: 16px; border-radius: 2px; background: var(--fill); } .heat .l { background: transparent; height: auto; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10.5px; } .heat .on { background: var(--c1); } .heat .on2 { background: #8db8ec; }
+.lvl { display: grid; grid-template-columns: 54px 1fr; gap: 6px; align-items: start; border-top: 1px solid var(--line); padding: 6px 0; font-size: 12px; } .lvl:first-child { border-top: 0; }
+.ind { background: var(--fill); border-radius: 4px; padding: 3px 7px; margin-bottom: 3px; font-size: 11.5px; display: flex; justify-content: space-between; gap: 8px; } .ind span { color: var(--ok); font-weight: 600; white-space: nowrap; } .ind span.lo { color: var(--bad); }
+.chain { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 11px; } .chain .blk { border: 1px solid var(--line2); border-radius: 5px; padding: 3px 7px; background: var(--paper); font-family: ui-monospace, Menlo, monospace; }
+.mapflow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px; }
+.mapcol h5 { text-align: center; } .mapbox { border: 1.5px solid var(--line2); border-radius: 8px; padding: 8px 10px; background: var(--paper); margin-bottom: 8px; font-size: 12px; }
+.mapbox b { display: block; font-size: 12.5px; } .mapbox small { color: var(--ink2); }
+.mapbox.h { border-color: var(--ok); background: var(--ok-soft); } .mapbox.a { border-color: var(--accent); background: var(--accent-soft); } .mapbox.d { border-style: dashed; }
+.mapbox .lk { display: block; font-size: 11px; color: var(--accent); margin-top: 3px; }
+.stat { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 4px; white-space: nowrap; } .stat.y { background: var(--ok-soft); color: var(--ok); } .stat.p { background: var(--warn-soft); color: var(--warn); } .stat.n { background: var(--bad-soft); color: var(--bad); }
+.bsel { display: flex; gap: 3px; flex-wrap: wrap; } .bsel span { border: 1px solid var(--line2); border-radius: 6px; padding: 3px 8px; font-size: 12px; cursor: pointer; background: var(--paper); } .bsel span.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+svg text { font-family: -apple-system, Helvetica, Arial, sans-serif; }
+@media (max-width: 1150px) { body { grid-template-columns: 1fr; } .proto { position: static; height: auto; } .layout, .g2, .g3, .g4, .mapflow { grid-template-columns: 1fr; } .notes { position: static; } .kpis { grid-template-columns: repeat(3, 1fr); } }
+</style>
+</head>
+<body>
+<nav class="proto" aria-label="Các màn của wireframe">
+  <h1>COMPETENCE LAB</h1><div class="sub0">Wireframe bấm được · chỉ dùng trên máy</div>
+  <h6>TỔNG QUAN</h6>
+  <button data-s="map">Sơ đồ điều hướng</button>
+  <button data-s="wp">Công thức ↔ màn hình</button>
+  <h6>GÓI 0 · THEO DÕI LƯỢT</h6>
+  <button data-s="g0-run">Lượt chạy</button>
+  <button data-s="blk">Chi tiết một bước (B0–B8)</button>
+  <button data-s="g0-stop">Khi lượt dừng</button>
+  <button data-s="g0-runs">Lịch sử lượt</button>
+  <h6>GÓI 1–2 · TỰ ĐỘNG HOÀN TOÀN</h6>
+  <button data-s="g1-in">Đầu vào</button>
+  <button data-s="g1-run">Lượt chạy tự động</button>
+  <button data-s="g1-out">Kết quả và duyệt</button>
+  <button data-s="dict">Từ điển</button>
+  <button data-s="demo">Trang demo (tách riêng)</button>
+  <label class="tog"><input type="checkbox" id="hot"> Hiện chỗ bấm được</label>
+  <div class="crumb" id="crumb"></div>
+</nav>
+<main>
+
+<section class="screen" id="map">
+  <div class="intro"><h2>Sơ đồ điều hướng</h2><p>Mỗi ô là một màn; dòng xanh dưới mỗi ô là thao tác dẫn sang màn khác. Bấm ô hoặc dòng thao tác để đi tới. Trong các màn, bật "Hiện chỗ bấm được" ở cột trái để thấy mọi chỗ có liên kết.</p></div>
+  <div class="mapflow">
+    <div class="mapcol"><h5>Con người · đầu vào</h5>
+      <div class="mapbox h" data-go="g1-in"><b>Đầu vào</b><small>Charter · bộ JD · dữ liệu thu thập · bài học từ lượt trước</small>
+        <a class="lk" data-go="g1-run">▶ Chạy lượt mới → Lượt chạy</a><a class="lk" data-go="g1-in" data-tab="in:data">Xem JD đã nạp → tab Dữ liệu</a></div>
+      <div class="mapbox d" data-go="demo"><b>Trang demo</b><small>Dữ liệu mẫu, xem từng bước, thử sự cố. Không chung khuôn với màn thật.</small></div>
+    </div>
+    <div class="mapcol"><h5>Hệ thống · tự động</h5>
+      <div class="mapbox a" data-go="g0-run"><b>Lượt chạy</b><small>9 bước, tiến độ, token, chi phí, cổng</small>
+        <a class="lk" data-go="blk" data-b="B5">Bấm một bước → Chi tiết bước</a><a class="lk" data-go="g0-stop">Banner dừng → Khi lượt dừng</a><a class="lk" data-go="g0-runs">Menu lượt → Lịch sử lượt</a></div>
+      <div class="mapbox a" data-go="blk" data-b="B3"><b>Chi tiết một bước</b><small>5 tab: Bước con · Kết quả và biểu đồ · Lời gọi AI · Các lần chạy · Kỹ thuật</small>
+        <a class="lk" data-go="blk" data-b="B5" data-tab="blk:flow">▶ Diễn biến dữ liệu (hoạt ảnh)</a><a class="lk" data-go="blk" data-b="B3" data-tab="blk:viz">Tab biểu đồ theo công thức</a><a class="lk" data-go="dict" data-tab="dict:trace">Bấm một năng lực → Từ điển, Truy vết nguồn</a></div>
+      <div class="mapbox a" data-go="g0-stop"><b>Khi lượt dừng</b><small>Hết hạn mức · cổng chặn · lỗi · tạm dừng</small><a class="lk" data-go="g1-in">Cổng B1 chặn → Đầu vào</a></div>
+      <div class="mapbox" data-go="g0-runs"><b>Lịch sử lượt</b><small>Mở lượt cũ = Lượt chạy chỉ đọc</small><a class="lk" data-go="g1-out">Lượt chờ duyệt → Kết quả</a></div>
+    </div>
+    <div class="mapcol"><h5>Con người · đầu ra</h5>
+      <div class="mapbox h" data-go="g1-out"><b>Kết quả và duyệt</b><small>Thay đổi từ điển · Khung (3 góc nhìn) · Khung bị ảnh hưởng · Thẩm định và bài học</small>
+        <a class="lk" data-go="dict" data-tab="dict:rel">Chấp nhận → Từ điển, bản mới</a><a class="lk" data-go="g1-in" data-tab="in:lesson">Từ chối có lý do → Đầu vào lượt sau</a><a class="lk" data-go="blk" data-b="B6" data-tab="blk:viz">Bấm một chỉ báo → bước B6</a></div>
+    </div>
+    <div class="mapcol"><h5>Tài sản lâu dài</h5>
+      <div class="mapbox" data-go="dict"><b>Từ điển</b><small>Giữ đủ 7 góc nhìn hiện có + tab Bản phát hành mới. "Xem tại bản" áp cho mọi góc nhìn.</small>
+        <a class="lk" data-go="dict" data-tab="dict:n2d">Mạng 2D</a><a class="lk" data-go="dict" data-tab="dict:trace">Truy vết nguồn → về đúng JD và bước</a><a class="lk" data-go="g1-out" data-tab="out:aff">Khung có bản mới → Kết quả</a></div>
+    </div>
+  </div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card pad"><h5>Màn hiện tại đi đâu</h5>
+      <table><tr><th>Màn hiện tại</th><th>Màn mới</th></tr>
+        <tr><td>Dây chuyền sản xuất</td><td><a data-go="g0-run">Lượt chạy</a> + <a data-go="blk" data-b="B3">Chi tiết một bước</a></td></tr>
+        <tr><td>Dữ liệu đầu vào</td><td><a data-go="g1-in" data-tab="in:data">Đầu vào · tab Dữ liệu của lượt</a></td></tr>
+        <tr><td>Khung năng lực (3 góc nhìn)</td><td><a data-go="g1-out" data-tab="out:frame">Kết quả · tab Khung</a>; khung đã phát hành mở từ <a data-go="dict" data-tab="dict:rel">Từ điển</a></td></tr>
+        <tr><td>Từ điển và tái sử dụng (7 góc nhìn)</td><td><a data-go="dict">Từ điển</a>, giữ nguyên 7 góc nhìn</td></tr>
+        <tr><td>Audit và bài học</td><td><a data-go="g1-out" data-tab="out:audit">Kết quả · tab Thẩm định và bài học</a>; bài học tự nạp ở <a data-go="g1-in" data-tab="in:lesson">Đầu vào</a></td></tr>
+        <tr><td>Quản lý phiên · Xuất và khôi phục</td><td>Menu cài đặt; danh sách lượt ở <a data-go="g0-runs">Lịch sử lượt</a></td></tr></table></div>
+    <div class="card pad"><h5>Bỏ khỏi màn chính</h5>
+      <ul style="margin:0;padding-left:16px">
+        <li>Khẩu hiệu đầu trang, thẻ "Phiên đang chạy", dải "A0 → AI B0–B8 → AQ"</li>
+        <li>5 nút chạy (Tiến 1 bước, Chạy tự động, Chạy từng bước, Giao bản thử nhanh, Bắt đầu lại)</li>
+        <li>Nhánh giao nhanh, dải "AU sau khung ứng viên"</li>
+        <li>Trạng thái "CHỜ ĐÃ HIỂU", phát lại từng bước bắt buộc (bỏ ở gói 1)</li>
+        <li>Mã nội bộ A0, AQ, AU, T8, W/C/R ở lớp chính (vẫn có ở tab Kỹ thuật)</li>
+      </ul></div>
+  </div>
+</section>
+
+<section class="screen" id="wp">
+  <div class="intro"><h2>Công thức và màn hiển thị</h2><p>Spec làm đủ toàn bộ white paper. Bảng này chỉ là mục lục: mỗi nhóm công thức trong Phụ lục A hiện ở màn nào, dạng hình nào, thuộc gói nào.</p></div>
+  <div class="app"><div class="body">
+        <table>
+      <tr><th>Số</th><th>Bước</th><th>Nội dung</th><th>Hiển thị ở đâu, dạng gì</th><th>Gói</th></tr>
+      <tr><td>(1)–(2)</td><td>B0</td><td>Mã băm snapshot; cổng G0 (agent kiểm khác model agent làm)</td><td><a data-go="blk" data-b="B0" data-tab="blk:viz">B0 · thẻ snapshot + bảng cặp agent</a></td><td>0 · 1–2</td></tr>
+      <tr><td>(3)–(4)</td><td>B1</td><td>JD hợp lệ; Jaccard phát hiện trùng</td><td><a data-go="blk" data-b="B1" data-tab="blk:viz">B1 · phễu JD</a></td><td>0</td></tr>
+      <tr><td>(5)–(7)</td><td>B1</td><td>Lăng kính L, M; hạng P1/P2/P3</td><td><a data-go="blk" data-b="B1" data-tab="blk:viz">B1 · thanh P1/P2/P3 + biểu đồ L–M</a></td><td>1–2</td></tr>
+      <tr><td>(8)</td><td>B1</td><td>Cổng G1: N ≥ 15 và N<sub>P1</sub> ≥ 5</td><td><a data-go="blk" data-b="B1" data-tab="blk:viz">B1 · bảng cổng</a></td><td>0</td></tr>
+      <tr><td>(9)</td><td>B2</td><td>Quy thang 0–100 về 1–5</td><td><a data-go="blk" data-b="B2" data-tab="blk:viz">B2 · bảng nghề chuẩn ngoài</a></td><td>1–2</td></tr>
+      <tr><td>(10)–(11)</td><td>B2–B3</td><td>Điểm giống năng lực đã có; trọng số nhiệm vụ</td><td><a data-go="blk" data-b="B3" data-tab="blk:viz">B3 · thanh dùng lại / mới</a>, <a data-go="blk" data-b="B2" data-tab="blk:viz">B2 · trọng số nhiệm vụ</a></td><td>0</td></tr>
+      <tr><td>(12)–(14)</td><td>B3</td><td>Trọng số bằng chứng, điểm thị trường, độ bao phủ thư viện</td><td><a data-go="blk" data-b="B3" data-tab="blk:viz">B3 · xếp hạng S(c), đồng hồ bao phủ</a></td><td>1–2</td></tr>
+      <tr><td>(15)–(16)</td><td>B3</td><td>Cohen's kappa; độ chính xác, độ đầy đủ, F1</td><td><a data-go="blk" data-b="B3" data-tab="blk:viz">B3 · ma trận đồng thuận hai lần mã hóa</a></td><td>1–2</td></tr>
+      <tr><td>(17)–(19)</td><td>B4</td><td>Đủ mẫu; chênh lệch nhóm xuất sắc / trung bình</td><td><a data-go="blk" data-b="B4" data-tab="blk:viz">B4 · thanh Δ theo chủ đề</a></td><td>1–2</td></tr>
+      <tr><td>(20)</td><td>B5</td><td>r<sub>wg</sub> đồng thuận nhóm chấm</td><td><a data-go="blk" data-b="B5" data-tab="blk:viz">B5 · thanh r<sub>wg</sub> có vạch 0,70</a></td><td>1–2</td></tr>
+      <tr><td>(21)–(23)</td><td>B5</td><td>Quy tắc giữ; 8 ≤ n ≤ 14, ≤ 1 meta</td><td><a data-go="blk" data-b="B5" data-tab="blk:viz">B5 · phân tán quan trọng × phân biệt</a></td><td>1–2</td></tr>
+      <tr><td>(24)–(26)</td><td>B5</td><td>Độ phủ; thử bỏ một; trung vị bậc</td><td><a data-go="blk" data-b="B5" data-tab="blk:viz">B5 · bản đồ nhiệt, thanh thử bỏ một</a></td><td>0</td></tr>
+      <tr><td>(27)–(28)</td><td>B6</td><td>Tỷ lệ retranslation; Fleiss' kappa</td><td><a data-go="blk" data-b="B6" data-tab="blk:viz">B6 · tỷ lệ xếp đúng từng chỉ báo</a></td><td>1–2</td></tr>
+      <tr><td>(29)–(30)</td><td>B6</td><td>2–4 chỉ báo mỗi bậc; ràng buộc năng lực và kết quả</td><td><a data-go="blk" data-b="B6" data-tab="blk:viz">B6 · thẻ bậc</a></td><td>1–2</td></tr>
+      <tr><td>(31)–(33)</td><td>B7</td><td>Thẩm định độc lập; cỡ mẫu ⌈0,1·N⌉; cổng G7</td><td><a data-go="blk" data-b="B7" data-tab="blk:viz">B7 · lưới cổng, mẫu kiểm</a></td><td>1–2</td></tr>
+      <tr><td>(34)–(35)</td><td>B8</td><td>Tầng phát hành; hạn rà soát 12/24 tháng</td><td><a data-go="blk" data-b="B8" data-tab="blk:viz">B8 · thẻ tầng</a>, <a data-go="g1-out">Kết quả</a></td><td>1–2</td></tr>
+      <tr><td>(36)–(37)</td><td>B8</td><td>Chuỗi nhật ký băm</td><td><a data-go="blk" data-b="B8" data-tab="blk:viz">B8 · chuỗi khối</a></td><td>0</td></tr>
+      <tr><td>(38)–(39)</td><td>Phiên bản</td><td>Tăng MAJOR / MINOR / PATCH; mức tăng của từ điển</td><td><a data-go="g1-out">Kết quả · cột phiên bản</a>, <a data-go="dict" data-tab="dict:rel">Từ điển · Bản phát hành</a></td><td>1–2</td></tr>
+      <tr><td>(40)–(42)</td><td>Phiên bản</td><td>Khung ghim phiên bản; điều kiện ghi; biên nhận</td><td><a data-go="dict" data-tab="dict:rel">Từ điển · Bản phát hành</a>, <a data-go="g1-out" data-tab="out:aff">Khung bị ảnh hưởng</a></td><td>1–2</td></tr>
+      <tr><td>(43)</td><td>Hàng loạt</td><td>Tỷ lệ trùng với khung gốc ≥ 0,60</td><td><a data-go="g1-in">Đầu vào · khung gốc gợi ý</a>, <a data-go="dict" data-tab="dict:cmp">So sánh vai trò</a></td><td>sau 1–2</td></tr>
+      <tr><td>(44)–(47)</td><td>AI</td><td>Token và chi phí</td><td><a data-go="blk" data-b="B5" data-tab="blk:calls">Tab Lời gọi AI</a>, <a data-go="g0-run">KPI Lượt chạy</a></td><td>0</td></tr>
+    </table>
+    <div class="g2" style="margin-top:12px">
+      <div class="card pad"><h5>Các phần khác của white paper</h5>
+        <table><tr><td>3.4 · con người chỉ ở hai đầu</td><td><a data-go="g1-in">Đầu vào</a> · <a data-go="g1-out">Kết quả</a></td><td>1–2</td></tr>
+        <tr><td>5 · kiểm chéo độc lập thay người kiểm giữa chừng</td><td><a data-go="g1-run">Cột Kiểm chéo</a></td><td>1–2</td></tr>
+        <tr><td>6.4 · ghi an toàn khi từ điển đã đổi</td><td><a data-go="g1-out">Kết quả · biên nhận</a></td><td>1–2</td></tr>
+        <tr><td>6.5 · quay lui, ghi chú phát hành</td><td><a data-go="dict" data-tab="dict:rel">Từ điển · Bản phát hành</a></td><td>1–2</td></tr>
+        <tr><td>8 · tối ưu token (đọc JD một lần, gom lô)</td><td><a data-go="blk" data-b="B5" data-tab="blk:calls">Lời gọi AI</a> để đo</td><td>sau 1–2</td></tr></table></div>
+      <div class="card pad"><h5>Cách đọc</h5><p class="muted" style="margin:0">Mọi công thức đều được hệ thống tính ở bản mục tiêu. Bấm cột "Hiển thị" để mở đúng bước; tab "Diễn biến dữ liệu" chạy lại phép tính trên từng dữ liệu, tab "Kết quả và biểu đồ" giữ kết quả cuối.</p></div></div>
+</section>
+
+<section class="screen" id="g0-run">
+  <div class="intro"><h2>Gói 0 · Lượt chạy</h2><p>Màn chính khi một lượt đang chạy. Bấm vào bất kỳ dòng nào để mở chi tiết bước đó. Số liệu theo lượt Project Manager thật (175 JD).</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span>
+        <div class="nav"><span data-go="g1-in">Đầu vào</span><span class="on">Lượt chạy</span><span data-go="g1-out">Kết quả</span><span data-go="dict">Từ điển</span></div>
+        <span class="sp"></span><span class="chip run"><span class="dot"></span>Worker hoạt động · 3 s trước</span></div>
+      <div class="body">
+        <div class="banner warn" data-go="g0-stop"><span class="ic warn">!</span><div><div class="t">Dừng ở B5 · hết hạn mức 5 giờ của Claude CLI</div><div class="small">107 / 270 lời gọi đã xong và đã lưu. Hạn mức hồi lúc 02:30.</div></div><span class="sp"></span><span class="btn pri">Chạy tiếp</span></div>
+        <div class="row" style="margin-bottom:10px"><div><h3>Lượt 1 · Project Manager</h3><div class="muted small">175 JD (131 hợp lệ) · từ điển nền v0 · bắt đầu 21:55</div></div><span class="sp"></span><span class="sel" data-go="g0-runs">Lượt 1 ▾</span><span class="btn ghost">⋯</span></div>
+        <div class="kpis">
+          <div><b>5 / 9</b><span>bước đã xong</span></div><div><b>1:41:32</b><span>thời gian chạy</span></div>
+          <div data-go="blk" data-b="B5" data-tab="blk:calls"><b>2 191</b><span>lời gọi AI · 747 lỗi hạn mức</span></div>
+          <div><b>10,7 tr</b><span>token</span></div><div data-go="blk" data-b="B5" data-tab="blk:calls"><b>$40,54</b><span>quy đổi giá API</span></div><div><b style="color:var(--warn)">100%</b><span>hạn mức 5 giờ</span></div></div>
+        <div class="steps">
+          <div class="st head"><span></span><span>BƯỚC</span><span>CỔNG</span><span class="r">THỜI GIAN</span><span class="r">LỜI GỌI</span><span class="r">CHI PHÍ</span></div>
+          <div class="st" data-go="blk" data-b="B0"><span class="ic ok">✓</span><span class="nm"><b>B0 · Khởi tạo</b><small>snapshot đã khóa</small></span><span class="small"><span class="chip ok">G0 đạt</span></span><span class="r">0:01</span><span class="r">—</span><span class="r">—</span></div>
+          <div class="st" data-go="blk" data-b="B1"><span class="ic ok">✓</span><span class="nm"><b>B1 · Thu thập và chấm JD</b><small>131 / 175 JD hợp lệ · 41 P1</small></span><span class="small"><span class="chip ok">G1 đạt</span></span><span class="r">12:20</span><span class="r">175</span><span class="r">$0,12</span></div>
+          <div class="st" data-go="blk" data-b="B2"><span class="ic ok">✓</span><span class="nm"><b>B2 · Trích nhiệm vụ, neo nghề</b><small>70 nhiệm vụ sau gộp</small></span><span class="small"><span class="chip ok">G2 đạt</span></span><span class="r">16:05</span><span class="r">148</span><span class="r">$4,13</span></div>
+          <div class="st" data-go="blk" data-b="B3"><span class="ic ok">✓</span><span class="nm"><b>B3 · Mã hóa, ứng viên năng lực</b><small>45 ứng viên · 12 dùng lại</small></span><span class="small"><span class="chip ok">G3 đạt</span></span><span class="r">24:30</span><span class="r">241</span><span class="r">$9,13</span></div>
+          <div class="st" data-go="blk" data-b="B4"><span class="ic ok">✓</span><span class="nm"><b>B4 · Hành vi thật</b><small>mức C · chỉ giả thuyết</small></span><span class="small"><span class="chip mute">G4 không áp dụng</span></span><span class="r">8:40</span><span class="r">566</span><span class="r">$4,77</span></div>
+          <div class="st sel" data-go="blk" data-b="B5"><span class="ic warn">!</span><span class="nm"><b>B5 · Chọn năng lực, đặt bậc</b><small>dừng khi đang nối nhiệm vụ</small></span><span class="small"><span class="chip warn">chưa tới cổng</span></span><span class="r">38:10</span><span class="r">107 / 270</span><span class="r">$22,39</span>
+            <div class="subs">
+              <div class="subrow"><span>Nối nhiệm vụ với năng lực <span class="faint">· AI</span></span><div class="prog"><i style="width:40%"></i></div><span class="r">107 / 270</span></div>
+              <div class="subrow faint"><span>Chọn năng lực, tính độ phủ · code</span><div class="prog"><i style="width:0"></i></div><span class="r">chờ</span></div>
+              <div class="subrow faint"><span>Thử bỏ từng năng lực · code</span><div class="prog"><i style="width:0"></i></div><span class="r">chờ</span></div></div></div>
+          <div class="st" data-go="blk" data-b="B6"><span class="ic idle"></span><span class="nm faint"><b>B6 · Chỉ báo và dịch ngược</b></span><span></span><span class="r faint">—</span><span class="r faint">—</span><span class="r faint">—</span></div>
+          <div class="st" data-go="blk" data-b="B7"><span class="ic idle"></span><span class="nm faint"><b>B7 · Thẩm định</b></span><span></span><span class="r faint">—</span><span class="r faint">—</span><span class="r faint">—</span></div>
+          <div class="st" data-go="blk" data-b="B8"><span class="ic idle"></span><span class="nm faint"><b>B8 · Hồ sơ và phát hành</b></span><span></span><span class="r faint">—</span><span class="r faint">—</span><span class="r faint">—</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note go"><h4>Bấm được</h4><p>Mỗi dòng bước → Chi tiết bước. Banner → Khi lượt dừng. Ô lời gọi / chi phí → tab Lời gọi AI. "Lượt 1 ▾" → Lịch sử lượt. Thanh điều hướng → các màn khác.</p></div>
+      <div class="note"><h4>Đọc một lần là biết</h4><p>Đang ở đâu (dòng tô màu), vì sao dừng (banner), tốn bao nhiêu (KPI). Không còn sơ đồ hai làn và 5 nút chạy.</p></div>
+      <div class="note"><h4>Cột cổng</h4><p>Kết quả cổng bằng chữ; bấm vào bước để thấy ngưỡng và số thực tế.</p></div>
+      <div class="note"><h4>Cần sửa worker</h4><p>Ghi sự kiện bắt đầu / xong / dừng của từng bước và ghi đúng giờ xong. Hiện chưa tính được thời gian mỗi bước.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="blk">
+  <div class="intro"><h2>Chi tiết một bước</h2><p>Chọn bước ở hàng nút B0–B8. Tab "Diễn biến dữ liệu" phát hoạt ảnh từng dữ liệu đi qua công thức; "Kết quả và biểu đồ" giữ kết quả cuối (B5: 12 năng lực, bằng chứng; B6: chỉ báo từng bậc).</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span>
+        <div class="nav"><span data-go="g1-in">Đầu vào</span><span class="on" data-go="g0-run">Lượt chạy</span><span data-go="g1-out">Kết quả</span><span data-go="dict">Từ điển</span></div><span class="sp"></span></div>
+      <div class="body">
+        <div class="row" style="margin-bottom:10px"><span class="btn ghost" data-go="g0-run">← Lượt 1</span><div class="bsel" id="bsel"></div></div>
+        <div class="card">
+          <div style="padding:11px 14px;border-bottom:1px solid var(--line)"><div class="row"><h3 id="b-title"></h3><span id="b-chips"></span></div><div class="muted small" id="b-desc" style="margin-top:3px"></div></div>
+          <div class="tabs" data-group="blk"><span data-t="flow">Diễn biến dữ liệu ▶</span><span data-t="sub">Bước con</span><span data-t="viz">Kết quả và biểu đồ</span><span data-t="calls">Lời gọi AI</span><span data-t="att">Các lần chạy</span><span data-t="tech">Kỹ thuật</span></div>
+          <div class="pane pbody" data-p="blk:flow"><div id="b-flow"></div></div>
+          <div class="pane pbody" data-p="blk:sub"><div class="tl" id="b-sub"></div></div>
+          <div class="pane pbody" data-p="blk:viz"><div id="b-viz"></div></div>
+          <div class="pane pbody" data-p="blk:calls">
+            <div class="g3" style="margin-bottom:10px">
+              <div class="card pad"><h5>Token đầu vào mỗi lời gọi</h5><div class="costbar"><i style="flex:50.5;background:var(--c2)"></i><i style="flex:1.2;background:var(--c3)"></i></div>
+                <div class="small"><span class="sw" style="background:var(--c2)"></span>Ghi bộ đệm 1 giờ ≈ 50 500 (giá ×2)<br><span class="sw" style="background:var(--c3)"></span>Đọc bộ đệm 1 169 (giá ×0,1)</div></div>
+              <div class="card pad"><h5>Tiền theo tác vụ, cả lượt</h5>
+                <div class="hbar"><span>Nối nhiệm vụ</span><div class="tr"><i style="width:100%"></i></div><span class="v">$22,39</span></div>
+                <div class="hbar"><span>Gom cụm ứng viên</span><div class="tr"><i style="width:26%"></i></div><span class="v">$5,85</span></div>
+                <div class="hbar"><span>Giả thuyết sự kiện</span><div class="tr"><i style="width:21%"></i></div><span class="v">$4,77</span></div>
+                <div class="hbar"><span>6 tác vụ khác</span><div class="tr"><i style="width:34%"></i></div><span class="v">$7,53</span></div></div>
+              <div class="card pad"><h5>Trạng thái · bước này</h5><table><tr><td><span class="chip ok">thành công</span></td><td class="n">107</td></tr><tr><td><span class="chip bad">hết hạn mức</span></td><td class="n">750</td></tr><tr><td><span class="chip mute">lấy từ đã lưu</span></td><td class="n">0</td></tr></table></div></div>
+            <div class="row" style="margin-bottom:8px"><span class="sel">Tác vụ ▾</span><span class="sel">Trạng thái ▾</span><span class="sel">Sắp theo chi phí ▾</span><span class="sp"></span><span class="btn ghost">Xuất CSV</span></div>
+            <table><tr><th>Giờ</th><th>Đầu vào</th><th class="n">Ghi đệm</th><th class="n">Đọc đệm</th><th class="n">Ra</th><th class="n">Giây</th><th class="n">USD</th><th>Trạng thái</th></tr>
+              <tr class="selr"><td class="mono">23:01:12</td><td>NV-031 "Lập kế hoạch nguồn lực"</td><td class="n">52 956</td><td class="n">0</td><td class="n">173</td><td class="n">3</td><td class="n">0,214</td><td><span class="chip ok">OK</span></td></tr>
+              <tr><td class="mono">23:01:12</td><td>NV-032 "Theo dõi tiến độ"</td><td class="n">50 506</td><td class="n">1 169</td><td class="n">150</td><td class="n">2</td><td class="n">0,204</td><td><span class="chip ok">OK</span></td></tr>
+              <tr><td class="mono">23:21–23:36</td><td>750 lời gọi gộp</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td class="n">1</td><td class="n">—</td><td><span class="chip bad">hết hạn mức</span></td></tr></table>
+            <div class="g2" style="margin-top:10px"><div><div class="small muted">Đầu vào của lời gọi đang chọn (đã che thông tin liên hệ)</div><div class="ph" style="height:60px">nhiệm vụ + 4 đoạn JD + danh sách 45 năng lực ≈ 49 000 token</div></div>
+              <div><div class="small muted">Đầu ra có cấu trúc</div><div class="ph" style="height:60px">{ links: [C-003, C-014, cand-31], đoạn căn cứ }</div></div></div>
+            <div class="small faint" style="margin-top:6px">Bảng này dùng chung cho mọi bước; số ví dụ của B5.</div>
+          </div>
+          <div class="pane pbody" data-p="blk:att">
+            <table><tr><th>Lần</th><th>Bắt đầu</th><th>Kết thúc</th><th class="n">Thời gian</th><th class="n">Lời gọi</th><th class="n">USD</th><th>Kết quả</th><th>Lý do chạy</th></tr>
+              <tr><td>1</td><td class="mono">22:58</td><td class="mono">23:36</td><td class="n">38:10</td><td class="n">857</td><td class="n">22,39</td><td><span class="chip bad">dừng · hết hạn mức</span></td><td>chạy tự động</td></tr>
+              <tr class="selr"><td>2</td><td class="mono">02:41</td><td class="mono">03:02</td><td class="n">21:05</td><td class="n">163</td><td class="n">5,40</td><td><span class="chip ok">xong · G5 đạt</span></td><td>chạy tiếp · 107 lấy từ đã lưu</td></tr></table>
+            <div class="g2" style="margin-top:10px"><div class="card pad"><b>Lần 1</b><div class="checklist small"><div>107 / 270 cặp đã nối</div><div class="faint">chưa chọn năng lực</div></div></div>
+              <div class="card pad"><b>Lần 2</b><div class="checklist small"><div>270 / 270 cặp đã nối</div><div>12 lõi + 1 meta · bao phủ 0,87</div></div></div></div>
+            <div class="small faint" style="margin-top:6px">Lần 2 là dữ liệu minh họa.</div>
+          </div>
+          <div class="pane pbody" data-p="blk:tech">
+            <table><tr><td>Mã bước / tác vụ</td><td class="mono" id="b-code"></td></tr><tr><td>Mã băm đầu vào / đầu ra</td><td class="mono">in 4be1…07 · out 9a2c…f3</td></tr><tr><td>Phiên bản</td><td class="mono">policy v3 · agents v2 · CLI 2.1.x</td></tr><tr><td>Dữ liệu thô</td><td><div class="ph" style="height:70px">JSON đầu ra, trace, cổng (như tab "Bản ghi đầy đủ" hiện tại)</div></td></tr></table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note go"><h4>Bấm được</h4><p>Hàng nút B0–B8 đổi bước. Tab đổi nội dung. Một số mục trong biểu đồ dẫn sang Từ điển hoặc Kết quả.</p></div>
+      <div class="note"><h4>Bước con</h4><p>Đọc vào gì → ra gì (số đếm), công thức với số thật, cổng. Hiện ngay khi từng bước con xong (cần sửa worker ghi trace dần).</p></div>
+      <div class="note"><h4>Kết quả và biểu đồ</h4><p>Kết quả cuối của bước theo công thức white paper.</p></div><div class="note"><h4>Diễn biến dữ liệu ▶</h4><p>Hoạt ảnh GSAP chạy lại phép tính trên từng dữ liệu: từng JD, từng câu mã hóa, từng ứng viên qua ba ghế, từng chỉ báo qua dịch ngược. Có phát / dừng, tua, chọn nhịp, đổi tốc độ. Mọi số hiện ra do script tính từ dữ liệu, không gõ tay.</p></div>
+      <div class="note"><h4>Lời gọi AI</h4><p>Tách ghi / đọc bộ đệm để thấy vì sao tốn. Lỗi giống nhau gộp thành một dòng.</p></div>
+      <div class="note keep"><h4>Giữ lại</h4><p>Bảng tính, công thức, bản ghi tham gia, bản ghi đầy đủ của bàn làm việc cũ.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="g0-stop">
+  <div class="intro"><h2>Gói 0 · Khi lượt dừng</h2><p>Bốn loại dừng, mỗi loại có lý do bằng lời và một thao tác chính. Banner nằm trên đầu màn Lượt chạy.</p></div>
+  <div class="layout">
+    <div class="app"><div class="body">
+      <div class="banner warn"><span class="ic warn">!</span><div><div class="t">Dừng ở B5 · hết hạn mức 5 giờ của Claude CLI</div><div class="small">107 / 270 lời gọi đã xong và đã lưu. Hạn mức hồi lúc 02:30. Chạy tiếp không gọi lại phần đã xong.</div></div><span class="sp"></span><span class="btn">Hẹn chạy lúc 02:30</span><span class="btn pri" data-go="g0-run">Chạy tiếp</span></div>
+      <div class="banner bad"><span class="ic bad">⊘</span><div><div class="t">Dừng ở B1 · cổng G1 chặn</div><div class="small">Cần ≥ 15 JD hợp lệ và ≥ 5 JD hạng P1. Thực tế 11 và 3.</div></div><span class="sp"></span><span class="btn" data-go="blk" data-b="B1" data-tab="blk:viz">Xem phễu JD</span><span class="btn pri" data-go="g1-in">Thêm JD</span></div>
+      <div class="banner bad"><span class="ic bad">✕</span><div><div class="t">Dừng ở B3 · lỗi khi gọi AI</div><div class="small">3 lời gọi liên tiếp thất bại: "claude thoát với mã 1". Thường do mất đăng nhập; chạy <span class="mono">claude</span> trên máy worker.</div></div><span class="sp"></span><span class="btn" data-go="blk" data-b="B3" data-tab="blk:calls">Xem lời gọi lỗi</span><span class="btn pri">Thử lại</span></div>
+      <div class="banner run"><span class="ic run">⏸</span><div><div class="t">Tạm dừng theo yêu cầu · trước B6</div><div class="small">B0–B5 đã xong. Không có lời gọi nào đang chạy.</div></div><span class="sp"></span><span class="btn pri" data-go="g0-run">Chạy tiếp</span></div>
+      <div class="card pad"><h5>Nhật ký lượt · lọc dừng và lỗi</h5>
+        <table><tr><th>Giờ</th><th>Sự kiện</th><th>Bước</th><th>Chi tiết</th></tr>
+          <tr><td class="mono">23:36:40</td><td><span class="chip bad">DỪNG</span></td><td>B5</td><td>Hết hạn mức · 747 lời gọi bị từ chối từ 23:21</td></tr>
+          <tr><td class="mono">23:21:05</td><td><span class="chip warn">CẢNH BÁO</span></td><td>B5</td><td>Lời gọi đầu tiên bị từ chối vì hạn mức</td></tr>
+          <tr><td class="mono">22:58:10</td><td><span class="chip run">BẮT ĐẦU</span></td><td>B5</td><td>Lần 1 · 270 cặp cần nối</td></tr>
+          <tr><td class="mono">22:58:09</td><td><span class="chip ok">XONG</span></td><td>B4</td><td>G4 không áp dụng (mức C) · 8:40</td></tr></table></div>
+    </div></div>
+    <div class="notes">
+      <div class="note"><h4>Dừng sớm</h4><p>Lượt thật còn gọi thêm 747 lần sau khi hết hạn mức. Đề xuất: gặp lỗi hạn mức thì dừng cả bước ngay và ghi giờ hồi.</p></div>
+      <div class="note"><h4>Sự kiện có cấu trúc</h4><p>Bắt đầu / xong / dừng / cảnh báo cho mỗi bước; hiện lý do dừng chỉ là một dòng chữ bị ghi đè.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="g0-runs">
+  <div class="intro"><h2>Gói 0 · Lịch sử lượt</h2><p>Mở một lượt cũ là ra màn Lượt chạy ở chế độ chỉ đọc. Lượt 2–3 là dữ liệu minh họa.</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span><div class="nav"><span data-go="g1-in">Đầu vào</span><span class="on" data-go="g0-run">Lượt chạy</span><span data-go="g1-out">Kết quả</span><span data-go="dict">Từ điển</span></div><span class="sp"></span></div>
+      <div class="body"><table>
+        <tr><th>Lượt</th><th>Bắt đầu</th><th>Bộ JD</th><th>Từ điển nền</th><th>Tiến độ</th><th class="n">Thời gian</th><th class="n">USD</th><th>Kết quả</th></tr>
+        <tr data-go="g1-out"><td>3</td><td>18/11 09:10</td><td>175 JD · bản 2</td><td>1.2.0</td><td><div class="prog ok" style="width:90px"><i style="width:100%"></i></div></td><td class="n">1:41:00</td><td class="n">1,02</td><td><span class="chip ok">chờ duyệt → Kết quả</span></td></tr>
+        <tr data-go="g0-run"><td>2</td><td>17/11 02:41</td><td>175 JD · bản 1</td><td>v0</td><td><div class="prog ok" style="width:90px"><i style="width:100%"></i></div></td><td class="n">2:20:00</td><td class="n">45,90</td><td><span class="chip ok">đã phát hành 1.0.0</span></td></tr>
+        <tr class="selr" data-go="g0-run"><td>1</td><td>16/11 21:55</td><td>175 JD · bản 1</td><td>v0</td><td><div class="prog" style="width:90px"><i style="width:55%"></i></div></td><td class="n">1:41:32</td><td class="n">40,54</td><td><span class="chip warn">dừng ở B5 · hết hạn mức</span></td></tr></table></div>
+    </div>
+    <div class="notes"><div class="note go"><h4>Bấm được</h4><p>Lượt chờ duyệt → Kết quả; lượt khác → Lượt chạy (chỉ đọc).</p></div></div>
+  </div>
+</section>
+
+<section class="screen" id="g1-in">
+  <div class="intro"><h2>Gói 1–2 · Đầu vào</h2><p>Điểm chạm thứ nhất của con người. Tab "Dữ liệu của lượt" thay màn "Dữ liệu đầu vào" hiện tại; tab "Bài học tự nạp" thay nút duyệt bài học.</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span><div class="nav"><span class="on">Đầu vào</span><span data-go="g0-run">Lượt chạy</span><span data-go="g1-out">Kết quả</span><span data-go="dict">Từ điển</span></div><span class="sp"></span></div>
+      <div class="tabs" data-group="in"><span data-t="form">Thiết lập lượt mới</span><span data-t="data">Dữ liệu của lượt · 175 JD</span><span data-t="lesson">Bài học tự nạp · 2</span></div>
+      <div class="pane body" data-p="in:form">
+        <div class="g2">
+          <div class="card pad"><h5>1 · Charter</h5>
+            <div class="field"><label>Vị trí chuẩn</label><div class="inp">Project Manager</div></div>
+            <div class="g2"><div class="field"><label>Ngành</label><div class="inp">Công nghệ thông tin</div></div><div class="field"><label>Cấp bậc</label><div class="inp">Trung cấp</div></div></div>
+            <div class="field"><label>Mục đích</label><div class="seg"><span class="on">Tuyển dụng</span><span>Đào tạo</span><span>Đánh giá</span></div></div>
+            <div class="field"><label>Mức chặt chẽ</label><div class="seg"><span>A</span><span>B</span><span class="on">C · tự động</span></div><div class="small muted" style="margin-top:3px">A, B cần thêm dữ liệu do con người thu ở mục 3.</div></div>
+            <div class="field"><label>Khung gốc gợi ý</label><div class="inp">Không có khung trùng ≥ 60% <span class="faint">(công thức 43)</span></div></div></div>
+          <div><div class="card pad" style="margin-bottom:12px"><h5>2 · Bộ JD</h5><div class="drop">Kéo thả tệp, dán văn bản, hoặc <b>quét kho tin tuyển dụng</b></div>
+            <div class="row small" style="margin-top:8px"><span class="chip ok">175 JD</span><span class="chip">24 trùng đã loại</span><span class="chip warn">20 sai vị trí</span><span class="sp"></span><a data-go="g1-in" data-tab="in:data">Xem danh sách →</a></div></div>
+            <div class="card pad"><h5>3 · Dữ liệu do con người thu (không bắt buộc)</h5><div class="drop" style="padding:10px">Sự kiện hành vi, khảo sát, đánh giá chuyên gia</div><div class="small muted" style="margin-top:5px">Không có → khung ra ở tầng Nội bộ.</div></div></div></div>
+        <div class="card pad" style="margin-top:12px"><h5>Kiểm tra trước khi chạy</h5><div class="g2"><div class="checklist"><div><span class="ic ok">✓</span>Charter đủ trường bắt buộc</div><div><span class="ic ok">✓</span>≥ 15 JD hợp lệ (dự kiến 131)</div><div><span class="ic ok">✓</span>Agent kiểm khác model agent làm ở mọi bước</div></div>
+          <div class="checklist"><div><span class="ic ok">✓</span>Claude CLI đã đăng nhập · worker hoạt động</div><div><span class="ic warn">!</span>Ước tính ≈ 250 nghìn token · hạn mức 5 giờ còn ≈ 60%</div><div><span class="ic ok">✓</span>Từ điển nền 1.2.0 (mới nhất)</div></div></div></div>
+      </div>
+      <div class="pane body" data-p="in:data">
+        <div class="row" style="margin-bottom:8px"><div class="seg"><span class="on">JD · 175</span><span>Nhiệm vụ · 70</span><span>Sự kiện · 0</span></div><span class="sp"></span><span class="sel">Hạng: tất cả ▾</span><span class="sel">Hợp lệ: tất cả ▾</span></div>
+        <table><tr><th>JD</th><th>Nguồn</th><th>Hạng</th><th>Hợp lệ</th><th>Dùng ở</th></tr>
+          <tr><td>Project Manager · Công ty A</td><td>kho tin tuyển dụng</td><td><span class="chip ok">P1</span></td><td>✓</td><td><a data-go="blk" data-b="B3" data-tab="blk:sub">12 câu ở B3</a></td></tr>
+          <tr><td>PM Fintech · Công ty B</td><td>tải tệp</td><td><span class="chip">P2</span></td><td>✓</td><td><a data-go="blk" data-b="B3" data-tab="blk:sub">8 câu ở B3</a></td></tr>
+          <tr><td>Trưởng nhóm bán hàng</td><td>kho tin tuyển dụng</td><td>—</td><td><span class="chip warn">sai vị trí</span></td><td class="faint">không dùng</td></tr></table>
+        <div class="small muted" style="margin-top:6px">Bấm một JD để xem văn bản với các đoạn được dùng tô màu (giữ như màn hiện tại).</div>
+      </div>
+      <div class="pane body" data-p="in:lesson">
+        <table><tr><th>Bài học</th><th>Từ đâu</th><th>Áp dụng ở</th><th>Trạng thái</th></tr>
+          <tr><td>Gộp nhầm "Giao tiếp" và "Thuyết trình"</td><td><a data-go="g1-out" data-tab="out:audit">Thẩm định lượt 2</a></td><td>B3 gom cụm</td><td><span class="chip ok">tự nạp</span></td></tr>
+          <tr><td>Lý do từ chối: "thiếu năng lực quản lý ngân sách"</td><td><a data-go="g1-out">Duyệt lượt 2</a></td><td>B5 chọn năng lực</td><td><span class="chip ok">tự nạp</span></td></tr></table>
+        <div class="small muted" style="margin-top:6px">Bài học vào thẳng lượt sau, không cần thao tác giữa chừng.</div>
+      </div>
+      <div class="foot"><span class="small muted">Sau khi bấm, hệ thống tự chạy B0 → B8.</span><span class="btn pri" data-go="g1-run">▶ Chạy lượt mới</span></div>
+    </div>
+    <div class="notes">
+      <div class="note go"><h4>Bấm được</h4><p>Tab, "Xem danh sách", cột "Dùng ở", nguồn bài học, nút Chạy.</p></div>
+      <div class="note keep"><h4>Giữ lại</h4><p>Danh sách JD, nhiệm vụ, sự kiện và văn bản JD tô đoạn của màn Dữ liệu đầu vào.</p></div>
+      <div class="note cut"><h4>Bỏ</h4><p>Xác nhận bộ JD nhiều bước, "Tiến 1 bước", giao bản thử nhanh, nút duyệt bài học.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="g1-run">
+  <div class="intro"><h2>Gói 1–2 · Lượt chạy tự động</h2><p>Cùng khung gói 0, thêm cột Kiểm chéo: agent độc lập, model khác, kết quả so với ngưỡng chuẩn SOP. Không có nút giữa các bước.</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span><div class="nav"><span data-go="g1-in">Đầu vào</span><span class="on">Lượt chạy</span><span data-go="g1-out">Kết quả</span><span data-go="dict">Từ điển</span></div><span class="sp"></span><span class="chip run"><span class="dot"></span>Worker hoạt động</span></div>
+      <div class="body">
+        <div class="row" style="margin-bottom:10px"><div><h3>Lượt 3 · Project Manager</h3><div class="muted small">175 JD · từ điển nền 1.2.0 · tự động</div></div><span class="sp"></span><span class="chip run"><span class="dot"></span>Đang chạy B6 · 6 / 9</span><span class="btn ghost">Dừng lượt</span></div>
+        <div class="steps">
+          <div class="st head" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px"><span></span><span>BƯỚC</span><span>KIỂM CHÉO</span><span class="r">THỜI GIAN</span><span class="r">CHI PHÍ</span></div>
+          <div class="st" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px" data-go="blk" data-b="B1" data-tab="blk:viz"><span class="ic ok">✓</span><span class="nm"><b>B1 · Thu thập và chấm JD</b><small>131 / 175 hợp lệ · 41 P1</small></span><span class="small muted">mẫu 10% chấm lại bằng Opus · lệch 4%</span><span class="r">6:10</span><span class="r">$0,04</span></div>
+          <div class="st" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px" data-go="blk" data-b="B3" data-tab="blk:viz"><span class="ic ok">✓</span><span class="nm"><b>B3 · Mã hóa</b><small>45 ứng viên · 12 dùng lại</small></span><span class="small"><span class="chip ok">κ = 0,79 ≥ 0,61</span><br><span class="faint">Opus mã hóa lại 20%</span></span><span class="r">9:40</span><span class="r">$0,30</span></div>
+          <div class="st" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px" data-go="blk" data-b="B5" data-tab="blk:viz"><span class="ic ok">✓</span><span class="nm"><b>B5 · Chọn năng lực, đặt bậc</b><small>12 lõi + 1 meta · bao phủ 0,87</small></span><span class="small"><span class="chip ok">r<sub>wg</sub> ≥ 0,70 với 12 / 12</span><br><span class="faint">3 ghế độc lập</span></span><span class="r">4:05</span><span class="r">$0,08</span></div>
+          <div class="st sel" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px" data-go="blk" data-b="B6"><span class="ic run">⟳</span><span class="nm"><b>B6 · Chỉ báo và dịch ngược</b><small>soạn chỉ báo 8 / 13 năng lực</small></span><span class="small"><span class="chip mute">dịch ngược: chờ</span><br><span class="faint">3 ghế, mù, xáo thứ tự</span></span><span class="r">3:20</span><span class="r">$0,09</span></div>
+          <div class="st" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px" data-go="blk" data-b="B7"><span class="ic idle"></span><span class="nm faint"><b>B7 · Thẩm định</b></span><span class="small faint">Opus đọc toàn hồ sơ</span><span class="r faint">—</span><span class="r faint">—</span></div>
+          <div class="st" style="grid-template-columns:22px minmax(0,1fr) 190px 62px 62px" data-go="blk" data-b="B8"><span class="ic idle"></span><span class="nm faint"><b>B8 · Hồ sơ và phát hành</b></span><span class="small faint">tự xếp loại thay đổi</span><span class="r faint">—</span><span class="r faint">—</span></div>
+        </div>
+        <div class="small faint" style="margin-top:6px">B0, B2, B4 đã xong, ẩn bớt cho gọn ở hình này.</div>
+        <div class="banner ok" style="margin-top:12px"><span class="ic ok">✓</span><div><div class="t">Khi B8 xong</div><div class="small">Chuyển sang Kết quả và báo người duyệt. Dự kiến 1.2.0 → 1.3.0 · 2 khung bị ảnh hưởng.</div></div><span class="sp"></span><span class="btn" data-go="g1-out">Mở Kết quả</span></div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><h4>Kiểm chéo thay người ở giữa</h4><p>Mỗi bước có agent kiểm độc lập; bấm vào để xem ma trận đồng thuận ở tab biểu đồ.</p></div>
+      <div class="note cut"><h4>Bỏ hẳn</h4><p>"CHỜ ĐÃ HIỂU", phát lại bắt buộc, nút "Đã hiểu".</p></div>
+      <div class="note"><h4>Số liệu</h4><p>Chi phí theo thiết kế tối ưu (ước tính), chưa đo thật.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="g1-out">
+  <div class="intro"><h2>Gói 1–2 · Kết quả và duyệt</h2><p>Điểm chạm thứ hai của con người. Tab "Khung" giữ ba góc nhìn của màn Khung năng lực hiện tại; tab "Thẩm định và bài học" thay màn Audit.</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span><div class="nav"><span data-go="g1-in">Đầu vào</span><span data-go="g0-run">Lượt chạy</span><span class="on">Kết quả</span><span data-go="dict">Từ điển</span></div><span class="sp"></span></div>
+      <div class="body" style="padding-bottom:0"><div class="row" style="margin-bottom:10px"><div><h3>Bản phát hành dự kiến 1.2.0 → 1.3.0</h3><div class="small muted">Từ lượt 3 · xong 10:51</div></div><span class="sp"></span><span class="chip">Tầng: Nội bộ · rà soát trước 18/11/2027</span><span class="chip ok" data-go="blk" data-b="B7" data-tab="blk:viz">G7 đạt · 9 / 9 cổng</span></div></div>
+      <div class="tabs" data-group="out"><span data-t="diff">Thay đổi từ điển · 4</span><span data-t="frame">Khung Project Manager</span><span data-t="aff">Khung bị ảnh hưởng · 2</span><span data-t="audit">Thẩm định và bài học</span></div>
+      <div class="pane body" data-p="out:diff">
+        <table class="diff"><tr><th>Năng lực</th><th>Thay đổi</th><th>Loại</th><th>Phiên bản</th><th>Lý do</th></tr>
+          <tr data-go="dict" data-tab="dict:trace"><td>Quản lý các bên liên quan</td><td>tạo mới</td><td>Bổ sung</td><td class="add">— → 1.0.0</td><td class="muted">64 JD nêu, không khớp năng lực có sẵn</td></tr>
+          <tr data-go="blk" data-b="B6" data-tab="blk:viz"><td>Quản lý rủi ro dự án</td><td>thêm chỉ báo bậc 5</td><td>Hồ sơ</td><td class="chg">1.2.1 → 1.3.0</td><td class="muted">Bậc 5 trước chỉ có 1 chỉ báo</td></tr>
+          <tr><td>Lập kế hoạch dự án</td><td>sửa chính tả</td><td>Sửa lỗi</td><td class="chg">2.0.0 → 2.0.1</td><td class="muted">"tiến đô" → "tiến độ"</td></tr>
+          <tr data-go="g1-out" data-tab="out:aff"><td>Giao tiếp</td><td>tách thành 2 năng lực</td><td>Định nghĩa</td><td class="maj">1.4.0 → 2.0.0</td><td class="muted">κ thấp ở cụm này · kéo theo 2 khung →</td></tr>
+          <tr><td class="faint">8 năng lực khác</td><td class="faint">dùng lại</td><td></td><td class="faint">giữ nguyên</td><td></td></tr></table>
+        <h5 style="margin-top:12px">Mạng từ điển thay đổi thế nào</h5><div id="net-out"></div><div class="small muted" style="margin-top:8px">Từ điển 1.2.0 → <b>1.3.0</b>: mức tăng của từ điển lấy theo công thức 39; MAJOR của một năng lực làm tăng MINOR của từ điển.</div>
+      </div>
+      <div class="pane body" data-p="out:frame">
+        <div class="row" style="margin-bottom:10px"><div class="seg" id="fseg"><span class="on" data-f="map">Bản đồ nhiệm vụ</span><span data-f="lv">Bậc và thay đổi</span><span data-f="cmp">So sánh hai phiên bản</span></div><span class="sp"></span><span class="small muted">3 góc nhìn của màn Khung năng lực hiện tại</span></div>
+        <div data-fv="map"><div class="g2"><div><h5>Nhiệm vụ (trọng số)</h5>
+          <div class="hbar"><span>Lập kế hoạch nguồn lực</span><div class="tr"><i style="width:90%"></i></div><span class="v">0,90</span></div>
+          <div class="hbar"><span>Theo dõi tiến độ</span><div class="tr"><i style="width:81%"></i></div><span class="v">0,81</span></div>
+          <div class="hbar"><span>Quản lý rủi ro</span><div class="tr"><i style="width:58%"></i></div><span class="v">0,58</span></div>
+          <div class="hbar"><span>Báo cáo các bên</span><div class="tr"><i style="width:45%"></i></div><span class="v">0,45</span></div></div>
+          <div><h5>Năng lực gánh nhiệm vụ</h5><div class="ph" style="height:120px">đường nối nhiệm vụ → năng lực (như "Bản đồ nhiệm vụ" hiện tại)</div></div></div></div>
+        <div data-fv="lv" style="display:none"><table><tr><th>Năng lực</th><th class="n">Bậc yêu cầu</th><th>Chỉ báo bậc yêu cầu</th><th>So với bản trước</th></tr>
+          <tr><td>Lập kế hoạch dự án</td><td class="n">3</td><td class="muted">Lập kế hoạch tổng thể có mốc và nguồn lực…</td><td>giữ</td></tr>
+          <tr data-go="blk" data-b="B6" data-tab="blk:viz"><td>Quản lý rủi ro dự án</td><td class="n">3</td><td class="muted">Lập sổ rủi ro, đánh giá xác suất và tác động…</td><td><span class="chip">+1 chỉ báo bậc 5</span></td></tr>
+          <tr><td>Quản lý các bên liên quan</td><td class="n">3</td><td class="muted">Xác định các bên, lập kế hoạch giao tiếp…</td><td><span class="chip ok">mới</span></td></tr></table></div>
+        <div data-fv="cmp" style="display:none"><div class="row" style="margin-bottom:8px"><span class="sel">PM 1.1.0 ▾</span><span>so với</span><span class="sel">PM 1.2.0 (dự kiến) ▾</span></div>
+          <div class="g2"><div class="ph" style="height:110px">Khung 1.1.0 · 11 năng lực</div><div class="ph" style="height:110px">Khung 1.2.0 · 12 năng lực · thêm, bớt, đổi bậc tô màu</div></div></div>
+      </div>
+      <div class="pane body" data-p="out:aff">
+        <table><tr><th>Khung</th><th>Đang ghim</th><th>Bản mới</th><th>Việc</th></tr>
+          <tr><td>Business Analyst 1.1.0</td><td>Giao tiếp@1.4.0</td><td>Giao tiếp@2.0.0 (tách đôi)</td><td><span class="btn" data-go="g1-in">Tạo lượt rà soát</span></td></tr>
+          <tr><td>Scrum Master 1.0.2</td><td>Giao tiếp@1.4.0</td><td>Giao tiếp@2.0.0 (tách đôi)</td><td><span class="btn" data-go="g1-in">Tạo lượt rà soát</span></td></tr></table>
+        <div class="small muted" style="margin-top:6px">Hai khung vẫn dùng bản cũ (công thức 40) cho tới khi có lượt rà soát. Chỉ liệt kê hay tự chạy lại: cần chốt.</div>
+      </div>
+      <div class="pane body" data-p="out:audit">
+        <div class="g2"><div class="card pad"><h5>Báo cáo thẩm định (B7)</h5>
+          <div class="checklist small"><div><span class="ic ok">✓</span>Thẩm định bởi model khác model đã làm (Opus)</div><div><span class="ic ok">✓</span>Mẫu kiểm 14 / 131 JD = ⌈0,1 × 131⌉</div><div><span class="ic warn">!</span>2 phát hiện mức thấp</div></div>
+          <a data-go="blk" data-b="B7" data-tab="blk:viz">Xem lưới cổng ở B7 →</a></div>
+          <div class="card pad"><h5>Phát hiện → bài học cho lượt sau</h5><table><tr><td>Chỉ báo bậc 2 "Giao tiếp" mơ hồ</td><td><span class="chip ok">thành bài học</span></td></tr><tr><td>JD P3 chiếm 31%</td><td><span class="chip mute">ghi nhận</span></td></tr></table>
+          <a data-go="g1-in" data-tab="in:lesson">Bài học tự nạp ở Đầu vào →</a></div></div>
+        <div class="small muted" style="margin-top:8px">Giữ nội dung màn "Audit và bài học": phát hiện, kết quả cổng theo bước, nhật ký theo lượt, cơ sở phương pháp.</div>
+      </div>
+      <div class="foot"><div class="inp" style="flex:1;min-width:200px">Lý do (bắt buộc khi từ chối; lượt sau dùng làm đầu vào)</div><span class="btn badb" data-go="g1-in" data-tab="in:lesson">Từ chối</span><span class="btn okb" data-go="dict" data-tab="dict:rel">✓ Chấp nhận và phát hành 1.3.0</span></div>
+    </div>
+    <div class="notes">
+      <div class="note go"><h4>Bấm được</h4><p>Dòng năng lực → Truy vết nguồn hoặc bước B6. Dòng MAJOR → Khung bị ảnh hưởng. Chấp nhận → Từ điển, Bản phát hành. Từ chối → Đầu vào, Bài học.</p></div>
+      <div class="note"><h4>Tầng và hạn rà soát</h4><p>Hệ thống tính (công thức 34–35). Người duyệt không nâng được tầng.</p></div>
+      <div class="note keep"><h4>Giữ lại</h4><p>3 góc nhìn khung; nội dung màn Audit.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="dict">
+  <div class="intro"><h2>Từ điển</h2><p>Giữ nguyên 7 góc nhìn hiện có (Mạng 2D, Mạng node 3D, Ma trận liên ngành, So sánh vai trò, Truy vết nguồn, Phiên bản/diff, Dữ liệu chi tiết) và thêm tab "Bản phát hành". Bộ chọn "Xem tại bản" áp cho mọi góc nhìn.</p></div>
+  <div class="layout">
+    <div class="app">
+      <div class="bar"><span class="brand">COMPETENCE LAB</span><span class="sel">Project Manager ▾</span><div class="nav"><span data-go="g1-in">Đầu vào</span><span data-go="g0-run">Lượt chạy</span><span data-go="g1-out">Kết quả</span><span class="on">Từ điển</span></div><span class="sp"></span></div>
+      <div class="body" style="padding-bottom:6px"><div class="g4" style="gap:8px"><div class="card pad"><b class="big">4</b> <span class="small muted">vị trí chuẩn</span></div><div class="card pad"><b class="big">58</b> <span class="small muted">năng lực chung</span></div><div class="card pad"><b class="big">7</b> <span class="small muted">khung</span></div><div class="card pad"><b class="big">12</b> <span class="small muted">dùng lại lượt này</span></div></div>
+        <div class="row" style="margin-top:8px"><span class="sel">Xem tại bản: 1.3.0 ▾</span><span class="sel">Nhóm: tất cả ▾</span><span class="sp"></span><span class="sel">Tìm năng lực…</span></div></div>
+      <div class="tabs" data-group="dict"><span data-t="rel">Bản phát hành · mới</span><span data-t="n2d">Mạng 2D</span><span data-t="n3d">Mạng node 3D</span><span data-t="mx">Ma trận liên ngành</span><span data-t="cmp">So sánh vai trò</span><span data-t="trace">Truy vết nguồn</span><span data-t="ver">Phiên bản/diff</span><span data-t="raw">Dữ liệu chi tiết</span></div>
+      <div class="pane body" data-p="dict:rel">
+        <div class="vtl"><div class="vnode"><b>1.0.0</b><span class="small muted">16/11 · PM lượt 2</span></div><div class="vlink">→</div><div class="vnode"><b>1.1.0</b><span class="small muted">17/11 · BA lượt 1</span></div><div class="vlink">→</div><div class="vnode"><b>1.2.0</b><span class="small muted">17/11 · Scrum lượt 1</span></div><div class="vlink">→</div><div class="vnode cur"><b>1.3.0</b><span class="small muted">18/11 · PM lượt 3</span></div></div>
+        <div class="g2" style="margin-top:10px"><div class="card pad"><h5>Ghi chú phát hành 1.3.0 (tự sinh)</h5><div class="small">+1 năng lực · 1 tách đôi (MAJOR) · 1 thêm chỉ báo · 1 sửa lỗi<br>Duyệt: người phụ trách · 18/11 11:02<br>Biên nhận <span class="mono">9f3c…a1</span></div><div class="row" style="margin-top:6px"><span class="btn" data-go="dict" data-tab="dict:ver">Xem diff với 1.2.0</span><span class="btn ghost">Quay lui về 1.2.0 (tạo 1.3.1)</span></div></div>
+          <div class="card pad"><h5>Khung đang ghim</h5><table><tr><td>Project Manager 1.2.0</td><td>@1.3.0</td><td><span class="chip ok">mới nhất</span></td></tr><tr><td>Business Analyst 1.1.0</td><td>@1.2.0</td><td><span class="chip warn" data-go="g1-out" data-tab="out:aff">có bản mới</span></td></tr><tr><td>Scrum Master 1.0.2</td><td>@1.2.0</td><td><span class="chip warn" data-go="g1-out" data-tab="out:aff">có bản mới</span></td></tr></table></div></div>
+        <div class="small faint" style="margin-top:6px">Bản 1.1.0–1.3.0 và các khung BA, Scrum là minh họa.</div>
+      </div>
+      <div class="pane body" data-p="dict:n2d"><h5>Cập nhật mạng · 1.2.0 → 1.3.0</h5><div id="net-dict" style="margin-bottom:12px"></div><h5>Mạng hiện tại</h5><div class="g2" style="grid-template-columns:1.6fr 1fr">
+        <svg viewBox="0 0 520 260" style="width:100%;border:1px solid var(--line);border-radius:8px;background:#fcfcfb">
+          <g stroke="#bdbbb5" stroke-width="1.2"><line x1="90" y1="70" x2="250" y2="60"/><line x1="90" y1="70" x2="260" y2="140"/><line x1="90" y1="190" x2="260" y2="140"/><line x1="90" y1="190" x2="250" y2="215"/><line x1="250" y1="60" x2="420" y2="50"/><line x1="260" y1="140" x2="430" y2="120"/><line x1="260" y1="140" x2="420" y2="190"/><line x1="250" y1="215" x2="420" y2="190"/></g>
+          <g font-size="11"><rect x="40" y="55" width="100" height="30" rx="6" fill="#e6effb" stroke="#2a78d6"/><text x="90" y="74" text-anchor="middle">Project Manager</text>
+          <rect x="40" y="175" width="100" height="30" rx="6" fill="#e6effb" stroke="#2a78d6"/><text x="90" y="194" text-anchor="middle">Business Analyst</text>
+          <circle cx="250" cy="60" r="16" fill="#1baf7a"/><text x="250" y="92" text-anchor="middle">Lập kế hoạch</text>
+          <circle cx="260" cy="140" r="20" fill="#1baf7a" stroke="#1d1d1b" stroke-width="2"/><text x="260" y="178" text-anchor="middle">Giao tiếp</text>
+          <circle cx="250" cy="215" r="13" fill="#1baf7a"/><text x="250" y="245" text-anchor="middle">Phân tích yêu cầu</text>
+          <rect x="390" y="38" width="64" height="24" rx="4" fill="#fbeee2" stroke="#eb6834"/><text x="422" y="54" text-anchor="middle">JD ×118</text>
+          <rect x="398" y="108" width="64" height="24" rx="4" fill="#fbeee2" stroke="#eb6834"/><text x="430" y="124" text-anchor="middle">JD ×96</text>
+          <rect x="388" y="178" width="64" height="24" rx="4" fill="#fbeee2" stroke="#eb6834"/><text x="420" y="194" text-anchor="middle">JD ×52</text></g></svg>
+        <div class="card pad"><h5>Đang chọn · Giao tiếp 1.4.0</h5><div class="small">Dùng ở 5 khung · 214 JD làm căn cứ · 4 bậc</div><div class="row" style="margin-top:6px"><span class="btn" data-go="dict" data-tab="dict:trace">Truy vết nguồn</span><span class="btn ghost" data-go="dict" data-tab="dict:ver">Lịch sử phiên bản</span></div></div></div>
+        <div class="small muted" style="margin-top:6px">Giữ như Mạng 2D hiện tại: vai trò – năng lực – bằng chứng, lọc theo lượt / toàn bộ.</div></div>
+      <div class="pane body" data-p="dict:n3d"><div class="ph" style="height:240px">Mạng node 3D hiện tại · xoay, phóng to, bấm node mở bảng bên phải (giữ nguyên)</div></div>
+      <div class="pane body" data-p="dict:mx">
+        <div class="heat" style="grid-template-columns:140px repeat(6, 1fr)">
+          <div class="l"></div><div class="l">CNTT</div><div class="l">Tài chính</div><div class="l">Sản xuất</div><div class="l">Bán lẻ</div><div class="l">Y tế</div><div class="l">Giáo dục</div>
+          <div class="l">Lập kế hoạch</div><div class="on"></div><div class="on"></div><div class="on2"></div><div class="on2"></div><div></div><div class="on2"></div>
+          <div class="l">Giao tiếp</div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div><div class="on"></div>
+          <div class="l">Quản lý rủi ro</div><div class="on"></div><div class="on"></div><div class="on2"></div><div></div><div class="on2"></div><div></div>
+          <div class="l">Phân tích yêu cầu</div><div class="on"></div><div class="on2"></div><div></div><div></div><div></div><div></div></div>
+        <div class="small muted" style="margin-top:6px">Ma trận liên ngành hiện tại (giữ nguyên): năng lực × ngành; đậm = trong khung gốc, nhạt = biến thể ngành.</div></div>
+      <div class="pane body" data-p="dict:cmp"><div class="row" style="margin-bottom:8px"><span class="sel">Project Manager ▾</span><span>so với</span><span class="sel">Scrum Master ▾</span><span class="sp"></span><span class="chip">trùng 58% (công thức 43)</span></div>
+        <div class="g3"><div class="card pad"><h5>Chỉ PM</h5><div class="small">Lập ngân sách · Quản lý hợp đồng</div></div><div class="card pad"><h5>Chung · 7</h5><div class="small">Giao tiếp · Quản lý rủi ro · …</div></div><div class="card pad"><h5>Chỉ Scrum</h5><div class="small">Huấn luyện nhóm · Gỡ vướng</div></div></div>
+        <div class="small muted" style="margin-top:6px">Giữ như So sánh vai trò hiện tại; thêm tỷ lệ trùng để gợi ý khung gốc khi sản xuất hàng loạt.</div></div>
+      <div class="pane body" data-p="dict:trace">
+        <div class="row small" style="margin-bottom:8px"><span class="sel">Năng lực: Quản lý các bên liên quan 1.0.0 ▾</span></div>
+        <div class="chain" style="font-size:12px">
+          <span class="blk">Năng lực 1.0.0</span>→<span class="blk" data-go="blk" data-b="B6" data-tab="blk:viz">4 bậc, 11 chỉ báo · B6</span>→<span class="blk" data-go="blk" data-b="B5" data-tab="blk:viz">chọn ở B5 · S = 0,47</span>→<span class="blk" data-go="blk" data-b="B3" data-tab="blk:sub">ứng viên cand-31 · B3</span>→<span class="blk" data-go="g1-in" data-tab="in:data">64 JD · 87 đoạn</span></div>
+        <table style="margin-top:10px"><tr><th>JD</th><th>Đoạn làm căn cứ</th><th>Hạng</th></tr><tr><td>Project Manager · Công ty A</td><td class="muted">"Phối hợp với khách hàng, nhà thầu và ban giám đốc…"</td><td>P1</td></tr><tr><td>PM Fintech · Công ty B</td><td class="muted">"Quản lý kỳ vọng của các bên liên quan…"</td><td>P2</td></tr></table>
+        <div class="small muted" style="margin-top:6px">Giữ Truy vết nguồn hiện tại; mỗi mắt xích bấm được về đúng bước và đúng JD.</div></div>
+      <div class="pane body" data-p="dict:ver">
+        <div class="row" style="margin-bottom:8px"><span class="sel">Từ 1.2.0 ▾</span><span>đến</span><span class="sel">1.3.0 ▾</span></div>
+        <div class="g2"><div class="card pad"><h5>Trước · Giao tiếp 1.4.0</h5><div class="small muted">Truyền đạt thông tin rõ ràng, lắng nghe và thuyết trình…</div></div><div class="card pad"><h5>Sau · 2.0.0</h5><div class="small">Tách: <b>Giao tiếp</b> (truyền đạt, lắng nghe) và <b>Thuyết trình</b> (năng lực mới 1.0.0)</div></div></div>
+        <div class="small muted" style="margin-top:6px">Giữ Phiên bản/diff hiện tại (trước, sau, lý do, khung bị ảnh hưởng, biên nhận); số phiên bản chuyển sang ba số.</div></div>
+      <div class="pane body" data-p="dict:raw"><div class="ph" style="height:180px">Dữ liệu chi tiết W / C / R / V / G dạng bảng và JSON (giữ nguyên)</div></div>
+    </div>
+    <div class="notes">
+      <div class="note keep"><h4>Giữ đủ 7 góc nhìn</h4><p>Chỉ đổi: bộ chọn "Xem tại bản" chung, phiên bản ba số, mọi mắt xích truy vết bấm được.</p></div>
+      <div class="note"><h4>Tab mới: Bản phát hành</h4><p>Dòng bản phát hành, ghi chú tự sinh, quay lui (tạo bản mới, không xóa), khung đang ghim (công thức 38–42).</p></div><div class="note"><h4>Mạng khi cập nhật</h4><p>Tab Mạng 2D phát hoạt ảnh: node ngừng dùng mờ đi, đổi nhỏ viền cam, MAJOR viền đỏ và tách node, node mới hiện ra màu xanh đậm, khung ghim bản cũ nét cam đứt.</p></div>
+      <div class="note go"><h4>Bấm được</h4><p>Mắt xích truy vết → bước và JD. "Có bản mới" → Khung bị ảnh hưởng.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="demo">
+  <div class="intro"><h2>Trang demo (tách riêng)</h2><p>Chế độ Ví dụ hiện tại thành trang riêng, có đường dẫn riêng, giữ nguyên tính năng: dữ liệu mẫu, xem từng bước có hướng dẫn, thử sự cố. Màn thật không còn phải theo khuôn của chế độ này.</p></div>
+  <div class="app"><div class="bar"><span class="brand">COMPETENCE LAB · DEMO</span><span class="chip warn">dữ liệu mẫu</span><span class="sp"></span><span class="btn" data-go="g1-in">Sang hệ thống thật →</span></div>
+    <div class="body"><div class="g3"><div class="ph" style="height:150px">Dây chuyền mẫu, xem từng bước (giữ như hiện tại)</div><div class="ph" style="height:150px">Bảng hướng dẫn từng nhịp</div><div class="ph" style="height:150px">Thử sự cố</div></div></div></div>
+</section>
+
+</main>
+
+<script>
+const FX = (no, f, s) => `<div class="fx"><span class="no">(${no})</span>${f}${s ? `<small>${s}</small>` : ''}</div>`;
+const HB = (rows, max, th) => rows.map(([l, v, t]) => `<div class="hbar${th != null && v < th ? ' lowv' : ''}"><span>${l}</span><div class="tr"><i style="width:${(v / max) * 100}%"></i>${th != null ? `<span class="th" style="left:${(th / max) * 100}%"></span>` : ''}</div><span class="v">${t ?? v}</span></div>`).join('');
+const NA = () => '';
+const KIND = { AI: 'ai', 'KIỂM CHÉO': 'chk', 'CỔNG': 'gate' };
+const EV = (cls, kind, title, meta, body) => `<div class="ev ${cls}"><div class="h"><span class="kind ${KIND[kind] || ''}">${kind}</span><b>${title}</b><span class="faint small">${meta || ''}</span></div>${body || ''}</div>`;
+const IO = (a, b) => `<div class="io"><div class="box">${a}</div><div class="arrow">→</div><div class="box">${b}</div></div>`;
+const RES = { ok: '<span class="chip ok">đạt</span>', na: '<span class="chip mute">không áp dụng</span>', bad: '<span class="chip bad">chặn</span>', note: '<span class="chip mute">chưa kiểm</span>' };
+const GATE = (rows) => `<table style="margin-top:6px"><tr><th>Điều kiện</th><th>Ngưỡng</th><th class="n">Thực tế</th><th>Kết quả</th></tr>${rows.map(([a, b, c, d]) => `<tr><td>${a}</td><td>${b}</td><td class="n">${c}</td><td>${RES[d]}</td></tr>`).join('')}</table>`;
+const C = (t) => `<div class="card pad">${t}</div>`;
+
+const B = {
+  B0: { name: 'Khởi tạo', chips: '<span class="chip ok">Xong · 0:01</span> <span class="chip ok">G0 đạt</span>', desc: 'Khóa đầu vào của lượt và kiểm tính độc lập của các agent.', code: 'B0 · code',
+    sub: EV('ok', 'CODE', 'Đọc charter và bộ JD', '0,1 s', IO('charter · 175 JD · bộ ngưỡng mức C', 'snapshot')) + EV('ok', 'CODE', 'Niêm phong snapshot', '', FX(1, 'H = SHA-256(snapshot)', 'H = 4be1…07')) + EV('ok', 'CỔNG', 'G0', '', GATE([['Đủ trường bắt buộc', 'đủ', '9 / 9', 'ok'], ['Mã băm khớp', 'khớp', 'khớp', 'ok'], ['Agent kiểm khác model agent làm', 'mọi bước', '—', 'note']])),
+    viz: `<div class="g2">${C(`<h5>Snapshot</h5><table><tr><td>Vị trí</td><td>Project Manager · CNTT · trung cấp</td></tr><tr><td>Mục đích</td><td>Tuyển dụng</td></tr><tr><td>Mức chặt chẽ</td><td>C</td></tr><tr><td>Bộ JD</td><td>175 · bản 1</td></tr><tr><td>Từ điển nền</td><td>v0</td></tr><tr><td>Mã băm</td><td class="mono">4be1…07</td></tr></table>${FX(1, 'H = SHA-256(snapshot)')}`)}
+      ${C(`<h5>Cặp agent làm / kiểm</h5><table><tr><th>Bước</th><th>Làm</th><th>Kiểm</th><th></th></tr><tr><td>B3</td><td>Sonnet</td><td>Opus</td><td><span class="chip ok">khác</span></td></tr><tr><td>B5</td><td>Sonnet</td><td>Haiku · Sonnet · Opus</td><td><span class="chip ok">khác</span></td></tr><tr><td>B6</td><td>Sonnet</td><td>Haiku · Sonnet · Opus</td><td><span class="chip ok">khác</span></td></tr><tr><td>B7</td><td>Sonnet</td><td>Opus</td><td><span class="chip ok">khác</span></td></tr></table>${FX(2, 'G0 = (đủ trường) ∧ (H khớp) ∧ (agent làm ≠ agent kiểm)')}`)}</div>${NA('Kiểm cặp agent thuộc gói 1–2; bản hiện tại chưa tính.')}` },
+  B1: { name: 'Thu thập và chấm JD', chips: '<span class="chip ok">Xong · 12:20 · 175 lời gọi · $0,12</span> <span class="chip ok">G1 đạt</span>', desc: 'Chuẩn hóa, loại trùng, xác định JD đúng vị trí, xếp hạng nguồn.', code: 'B1 · T1 jd_scope (Haiku)',
+    sub: EV('ok', 'CODE', 'Chuẩn hóa, che liên hệ, cắt đoạn', '2 s', IO('175 JD thô', '175 JD · 3 912 đoạn')) + EV('ok', 'CODE', 'Loại trùng gần đúng', '1 s', FX(4, 'J(A, B) = |A ∩ B| / |A ∪ B|', '24 JD trùng bị loại')) + EV('ok', 'AI', 'Đúng vị trí? chấm tiêu chí', '12:10 · 175 lời gọi', IO('151 JD', '131 hợp lệ · 20 sai vị trí')) + EV('ok', 'CODE', 'Xếp hạng nguồn', '', FX('5–7', 'L = 3A + 2C + D + E ; M = 3B + 2C + D + E', 'P1 ≥ 18 · P2 13–17 · P3 ≤ 12')) + EV('ok', 'CỔNG', 'G1', '', GATE([['Số JD hợp lệ', '≥ 15', '131', 'ok'], ['Số JD hạng P1', '≥ 5', '41', 'ok']])),
+    viz: `<div class="g2">${C(`<h5>Phễu JD (3)–(4)</h5><div class="funnel"><div style="width:100%">175 JD nạp vào</div><div style="width:86%">151 sau loại trùng</div><div style="width:75%">131 hợp lệ</div><div style="width:40%;background:var(--c3)">41 hạng P1</div></div>`)}
+      ${C(`<h5>Hạng nguồn (5)–(7)</h5><div class="stack"><i style="flex:41;background:var(--c3)">P1 41</i><i style="flex:49;background:var(--c1)">P2 49</i><i style="flex:41;background:var(--c2)">P3 41</i></div>
+        <svg viewBox="0 0 260 130" style="width:100%;margin-top:8px"><line x1="30" y1="110" x2="250" y2="110" stroke="#bdbbb5"/><line x1="30" y1="10" x2="30" y2="110" stroke="#bdbbb5"/><line x1="30" y1="45" x2="250" y2="45" stroke="#b3261e" stroke-dasharray="4 3"/><text x="248" y="41" font-size="9" fill="#b3261e" text-anchor="end">P1 ≥ 18</text>
+        ${Array.from({ length: 36 }, (_, i) => { const x = 40 + ((i * 53) % 200), y = 18 + ((i * 37) % 86); return `<circle cx="${x}" cy="${y}" r="3.5" fill="${y < 45 ? '#1baf7a' : y < 75 ? '#2a78d6' : '#eb6834'}" stroke="#fff" stroke-width="1"/>`; }).join('')}
+        <text x="140" y="126" font-size="9" text-anchor="middle" fill="#5c5b57">điểm lăng kính L</text><text x="12" y="60" font-size="9" fill="#5c5b57" transform="rotate(-90 12 60)" text-anchor="middle">M</text></svg>`)}</div>
+      <div style="margin-top:12px">${C(`<h5>Cổng G1 (8)</h5>${FX(8, 'G1 ⇔ N ≥ 15 ∧ N<sub>P1</sub> ≥ 5', 'N = 131 · N<sub>P1</sub> = 41')}`)}</div>${NA('Lăng kính L, M thuộc gói 1–2; hiện AI xếp hạng trực tiếp. Số P1/P2/P3 minh họa.')}` },
+  B2: { name: 'Trích nhiệm vụ, neo nghề', chips: '<span class="chip ok">Xong · 16:05 · 148 lời gọi · $4,13</span> <span class="chip ok">G2 đạt</span>', desc: 'Tách nhiệm vụ từ JD, gộp nhiệm vụ trùng, neo vào mã nghề Việt Nam và nghề chuẩn ngoài.', code: 'B2 · T2 task_extract · T3 task_merge',
+    sub: EV('ok', 'AI', 'Trích nhiệm vụ từng JD', '9:40 · 131 lời gọi', IO('131 JD hợp lệ', '1 140 nhiệm vụ thô')) + EV('ok', 'AI', 'Gộp nhiệm vụ trùng', '6:20 · 17 lời gọi', IO('1 140 thô', '70 nhiệm vụ')) + EV('ok', 'CODE', 'Trọng số nhiệm vụ', '', FX(11, 'w<sub>t</sub> = n<sub>t</sub> / N', '"Lập kế hoạch nguồn lực": 118 / 131 = 0,90')) + EV('ok', 'CỔNG', 'G2', '', GATE([['Có mã nghề Việt Nam', 'có', '2421', 'ok'], ['≥ 1 nghề chuẩn ngoài có lý do', '≥ 1', '2', 'ok']])),
+    viz: `<div class="g2">${C(`<h5>Nhiệm vụ theo trọng số (11)</h5>${HB([['Lập kế hoạch nguồn lực', 0.9, '0,90'], ['Theo dõi tiến độ', 0.81, '0,81'], ['Báo cáo tình trạng', 0.66, '0,66'], ['Quản lý rủi ro', 0.58, '0,58'], ['Quản lý thay đổi', 0.33, '0,33'], ['Đàm phán nhà thầu', 0.12, '0,12']], 1)}<div class="small muted">+ 64 nhiệm vụ khác · bấm để xem JD nêu nhiệm vụ</div>`)}
+      ${C(`<h5>Neo nghề (9)</h5><table><tr><th>Nguồn</th><th>Nghề</th><th class="n">Điểm gốc</th><th class="n">Quy về 1–5</th></tr><tr><td>Mã nghề VN</td><td>2421 · Quản lý dự án</td><td class="n">—</td><td class="n">—</td></tr><tr><td>Chuẩn ngoài</td><td>Project Management Specialist</td><td class="n">75</td><td class="n">4,0</td></tr></table>${FX(9, 's = 1 + x / 100 × 4', 'x = 75 → s = 4,0')}`)}</div>${NA('Quy thang (9) thuộc gói 1–2. Mã nghề và điểm minh họa.')}` },
+  B3: { name: 'Mã hóa, ứng viên năng lực', chips: '<span class="chip ok">Xong · 24:30 · 241 lời gọi · $9,13</span> <span class="chip ok">G3 đạt</span>', desc: 'Chuyển câu yêu cầu thành ứng viên năng lực có căn cứ, ưu tiên dùng lại từ điển.', code: 'B3 · T4 competency_extract · T5 candidate_cluster',
+    sub: EV('ok', 'CODE', 'Nạp câu yêu cầu', '0,3 s', IO('131 JD · 70 nhiệm vụ', '1 812 câu yêu cầu')) + EV('ok', 'AI', 'Trích ứng viên từng JD', '13:10 · 189 lời gọi', IO('1 JD / lời gọi', '614 ứng viên thô · 7 bị từ chối')) + EV('ok', 'CODE', 'Đối chiếu từ điển', '1,2 s', FX(10, 'điểm = max(J<sub>tên</sub>, 0,7 × J<sub>định nghĩa</sub>) ≥ 0,3', '12 dùng lại · 33 mới')) + EV('ok', 'AI', 'Gom cụm', '6:30 · 52 lời gọi', IO('614 thô', '45 ứng viên')) + EV('ok', 'CODE', 'Trọng số bằng chứng', '', FX('12–13', 'E(c) = Σ ω<sub>q</sub> ; S(c) = E(c) / max E')) + EV('', 'KIỂM CHÉO', 'Mã hóa lại 20% bằng model khác', 'gói 1–2', FX(15, 'κ = (p<sub>o</sub> − p<sub>e</sub>) / (1 − p<sub>e</sub>) ≥ 0,61')) + EV('ok', 'CỔNG', 'G3', '', GATE([['Mọi ứng viên trỏ về đoạn gốc', '100%', '100%', 'ok'], ['κ hai lần mã hóa', '≥ 0,61', '—', 'note']])),
+    viz: `<div class="g2">${C(`<h5>Điểm thị trường S(c) (12)–(13)</h5><div data-go="dict" data-tab="dict:trace">${HB([['Lập kế hoạch dự án', 1, '1,00'], ['Quản lý rủi ro dự án', 0.58, '0,58'], ['Quản lý các bên liên quan', 0.47, '0,47'], ['Giao tiếp', 0.44, '0,44'], ['Quản lý ngân sách', 0.31, '0,31'], ['Ra quyết định', 0.27, '0,27'], ['Lãnh đạo nhóm', 0.25, '0,25'], ['Đàm phán', 0.15, '0,15']], 1)}</div><div class="small muted">Bấm một năng lực → Từ điển, Truy vết nguồn</div>`)}
+      <div>${C(`<h5>Dùng lại hay tạo mới (10)</h5><div class="stack"><i style="flex:12;background:var(--c3)">dùng lại 12</i><i style="flex:33;background:var(--c1)">mới 33</i></div>
+        <h5 style="margin-top:12px">Độ bao phủ thư viện (14)</h5><div class="gauge"><i style="width:27%"></i></div><div class="small">27% câu yêu cầu mã hóa được vào năng lực có sẵn</div>`)}
+      <div style="height:10px"></div>${C(`<h5>Đồng thuận hai lần mã hóa (15)</h5><div class="cm"><div class="h"></div><div class="h">Lập KH</div><div class="h">Rủi ro</div><div class="h">Bên LQ</div><div class="h">Lập KH</div><div class="d">58</div><div>3</div><div>1</div><div class="h">Rủi ro</div><div>4</div><div class="d">41</div><div>2</div><div class="h">Bên LQ</div><div>2</div><div>1</div><div class="d">36</div></div>
+        <div class="row" style="margin-top:6px"><span class="big">κ = 0,79</span><span class="chip ok">≥ 0,61</span></div><div class="small muted">Hàng: lần mã hóa thứ nhất (Sonnet) · cột: lần thứ hai (Opus)</div>`)}</div></div>${NA('Ma trận đồng thuận và κ thuộc gói 1–2; số minh họa. Các phần còn lại dùng số thật của lượt.')}` },
+  B4: { name: 'Hành vi thật', chips: '<span class="chip ok">Xong · 8:40 · 566 lời gọi · $4,77</span> <span class="chip mute">G4 không áp dụng</span>', desc: 'Đối chiếu ứng viên với sự kiện hành vi thật. Ở mức C không có dữ liệu do con người thu, chỉ sinh giả thuyết.', code: 'B4 · T13 hypothesis_propose',
+    sub: EV('ok', 'AI', 'Đề xuất giả thuyết sự kiện', '8:40 · 566 lời gọi', IO('45 ứng viên', '566 giả thuyết')) + EV('', 'CODE', 'Kiểm đủ mẫu', 'chỉ mức A, B', FX('17–18', 'Mức B: số người ≥ 3 ∧ số sự kiện ≥ 6')) + EV('', 'CODE', 'Chênh lệch hai nhóm', 'chỉ mức A, B', FX(19, 'Δ = f<sub>xuất sắc</sub> − f<sub>trung bình</sub>')) + EV('ok', 'CỔNG', 'G4', '', GATE([['Đủ mẫu theo mức', 'mức C', '0 sự kiện thật', 'na']])),
+    viz: `${NA('Mức C: không có sự kiện do con người thu nên các biểu đồ dưới đây là minh họa. Khi có dữ liệu ở Đầu vào, hệ thống tính (17)–(19).')}<div class="g2" style="margin-top:10px">${C(`<h5>Chênh lệch theo chủ đề (19)</h5>${HB([['Chủ động báo rủi ro sớm', 0.42, '+0,42'], ['Đàm phán lại phạm vi', 0.31, '+0,31'], ['Lập kế hoạch chi tiết', 0.08, '+0,08']], 0.5)}<div class="small muted">Chủ đề có Δ lớn mới được xem là tạo khác biệt</div>`)}${C(`<h5>Sự kiện theo loại bằng chứng</h5><div class="stack"><i style="flex:120;background:var(--c1)">mẫu 120</i><i style="flex:446;background:var(--c2)">giả thuyết 446</i></div><div class="small muted" style="margin-top:4px">Sự kiện thật: 0 · chỉ sự kiện thật được tính vào (17)–(19)</div>`)}</div>` },
+  B5: { name: 'Chọn năng lực, đặt bậc', chips: '<span class="chip warn">Dừng · hết hạn mức · lần 1</span>', desc: 'Nối nhiệm vụ với năng lực, chọn tập lõi, kiểm độ phủ, đặt bậc yêu cầu.', code: 'B5 · T8 task_link · T9',
+    sub: EV('ok', 'CODE', 'Nạp đầu vào', '0,4 s', IO('70 nhiệm vụ · 45 ứng viên', '270 cặp cần nối')) + EV('run', 'AI', 'Nối nhiệm vụ với năng lực', 'dừng ở 107 / 270', IO('1 nhiệm vụ + đoạn JD + 45 năng lực / lời gọi', '107 đã nối · 750 lỗi hạn mức') + '<div class="prog" style="margin-top:6px"><i style="width:40%;background:var(--warn)"></i></div>') + EV('', 'KIỂM CHÉO', 'Ba ghế chấm quan trọng, phân biệt, bậc', 'gói 1–2', FX(20, 'r<sub>wg</sub> = max(0, 1 − s² / 2) ≥ 0,70')) + EV('', 'CODE', 'Chọn tập lõi', '', FX('21–23', 'giữ ⇔ x̄<sub>quan trọng</sub> ≥ 3,5 ∧ x̄<sub>phân biệt</sub> ≥ 3,0 ∧ r<sub>wg</sub> ≥ 0,70 ; 8 ≤ n ≤ 14')) + EV('', 'CODE', 'Độ phủ và thử bỏ một', '', FX('24–25', 'bao phủ = Σ w · 1[có năng lực] / Σ w')) + EV('', 'CỔNG', 'G5', 'chưa tới', ''),
+    viz: `<div class="g2">${C(`<h5>Quy tắc giữ (21)–(22)</h5><svg viewBox="0 0 280 205" style="width:100%"><rect x="150" y="10" width="125" height="85" fill="#e3f3ec"/><line x1="35" y1="175" x2="275" y2="175" stroke="#bdbbb5"/><line x1="35" y1="10" x2="35" y2="175" stroke="#bdbbb5"/>
+        <line x1="150" y1="10" x2="150" y2="175" stroke="#b3261e" stroke-dasharray="4 3"/><line x1="35" y1="95" x2="275" y2="95" stroke="#b3261e" stroke-dasharray="4 3"/><text x="152" y="186" font-size="9" fill="#b3261e">3,5</text><text x="14" y="98" font-size="9" fill="#b3261e">3,0</text>
+        ${[[230, 30], [210, 45], [195, 60], [250, 25], [180, 70], [170, 55], [205, 80], [165, 88], [240, 50], [190, 40], [175, 35], [225, 65], [120, 60], [100, 120], [140, 110], [160, 125], [80, 140], [200, 115]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="4.5" fill="${x > 150 && y < 95 ? '#1baf7a' : '#bdbbb5'}" stroke="#fff" stroke-width="1.5"/>`).join('')}
+        <text x="155" y="200" font-size="9" fill="#5c5b57" text-anchor="middle">mức quan trọng (trung bình 3 ghế)</text><text x="10" y="92" font-size="9" fill="#5c5b57" transform="rotate(-90 10 92)" text-anchor="middle">mức phân biệt</text><text x="270" y="22" font-size="9" fill="#1a8a5c" text-anchor="end">giữ · 12</text></svg>`)}
+      ${C(`<h5>Đồng thuận ba ghế r<sub>wg</sub> (20)</h5>${HB([['Lập kế hoạch dự án', 0.91, '0,91'], ['Quản lý rủi ro', 0.84, '0,84'], ['Bên liên quan', 0.78, '0,78'], ['Giao tiếp', 0.74, '0,74'], ['Lãnh đạo nhóm', 0.62, '0,62'], ['Đàm phán', 0.55, '0,55']], 1, 0.7)}<div class="small muted">Dưới vạch 0,70 bị loại dù điểm cao</div>`)}</div>
+      <div class="g2" style="margin-top:10px">${C(`<h5>Nhiệm vụ × năng lực (24)</h5><div class="heat" style="grid-template-columns:120px repeat(8, 1fr)">${['Lập KH nguồn lực', 'Theo dõi tiến độ', 'Báo cáo tình trạng', 'Quản lý rủi ro', 'Quản lý thay đổi'].map((t, r) => `<div class="l">${t}</div>` + Array.from({ length: 8 }, (_, c) => `<div class="${(r * 3 + c * 5) % 7 < 2 ? 'on' : (r + c) % 5 === 0 ? 'on2' : ''}"></div>`).join('')).join('')}</div><div class="row" style="margin-top:8px"><span class="big">0,87</span><span class="chip ok">bao phủ ≥ 0,80</span></div>`)}
+      ${C(`<h5>Thử bỏ một (25) · độ phủ còn lại</h5>${HB([['bỏ Lập kế hoạch', 0.61, '0,61'], ['bỏ Quản lý rủi ro', 0.74, '0,74'], ['bỏ Bên liên quan', 0.79, '0,79'], ['bỏ Giao tiếp', 0.83, '0,83']], 1, 0.8)}<div class="small muted">Rớt dưới 0,80 = năng lực không thể thiếu</div><h5 style="margin-top:8px">Bậc yêu cầu (26)</h5><div class="small">trung vị ba ghế: 3, 3, 4 → <b>3</b></div>`)}</div>${NA('Lượt này dừng trước khi có kết quả; biểu đồ dùng số minh họa. Bản hiện tại đã tính (24)–(26); ba ghế, r<sub>wg</sub> và giới hạn 8–14 thuộc gói 1–2.')}` },
+  B6: { name: 'Chỉ báo và dịch ngược', chips: '<span class="chip mute">Chưa chạy</span>', desc: 'Soạn chỉ báo hành vi cho từng bậc, rồi agent độc lập xếp ngược chỉ báo vào năng lực và bậc mà không biết đáp án.', code: 'B6 · T10 · T11',
+    sub: EV('', 'AI', 'Soạn định nghĩa và chỉ báo bậc 1, 3, 5', '', IO('12 năng lực + bằng chứng', '2–4 chỉ báo mỗi bậc')) + EV('', 'KIỂM CHÉO', 'Dịch ngược · 3 ghế, mù, xáo thứ tự', '', FX(27, 'p<sub>i</sub> = số ghế xếp đúng / số ghế ≥ 0,70')) + EV('', 'CODE', 'Đồng thuận xếp lớp', '', FX(28, 'Fleiss κ ≥ 0,61')) + EV('', 'CỔNG', 'G6', '', ''),
+    viz: `<div class="g2">${C(`<h5>Thẻ bậc · Quản lý rủi ro dự án (29)</h5><div class="lvl"><b>Bậc 1</b><div><div class="ind">Nhận diện rủi ro rõ ràng khi được hỏi<span>3/3</span></div><div class="ind">Ghi rủi ro vào sổ theo mẫu<span>3/3</span></div></div></div>
+        <div class="lvl"><b>Bậc 3</b><div><div class="ind">Đánh giá xác suất và tác động cho từng rủi ro<span>3/3</span></div><div class="ind">Đề xuất phương án ứng phó<span>2/3</span></div><div class="ind">Hiểu tầm quan trọng của rủi ro<span class="lo">1/3</span></div></div></div>
+        <div class="lvl"><b>Bậc 5</b><div><div class="ind">Thiết kế quy trình rủi ro cho danh mục dự án<span>3/3</span></div><div class="ind">Huấn luyện đội dự án nhận diện rủi ro<span>2/3</span></div></div></div>
+        <div class="small muted">Chỉ báo đỏ dưới 0,70 được viết lại. Bấm một chỉ báo để xem ba ghế xếp vào đâu.</div>`)}
+      ${C(`<h5>Tỷ lệ xếp đúng p<sub>i</sub> (27)</h5>${HB([['Chỉ báo 1.1', 1, '1,00'], ['Chỉ báo 1.2', 1, '1,00'], ['Chỉ báo 3.1', 1, '1,00'], ['Chỉ báo 3.2', 0.67, '0,67'], ['Chỉ báo 3.3', 0.33, '0,33'], ['Chỉ báo 5.1', 1, '1,00'], ['Chỉ báo 5.2', 0.67, '0,67']], 1, 0.7)}
+        <div class="row" style="margin-top:8px"><span class="big">κ 0,64 → 1,00</span><span class="chip ok">Fleiss ≥ 0,61 (28)</span></div><div class="small muted">2–4 chỉ báo mỗi bậc (29) · chỉ báo nêu hành vi, không nêu kết quả (30)</div>`)}</div>${NA('Bản hiện tại dịch ngược bằng 1 ghế; 3 ghế, p<sub>i</sub> và Fleiss κ thuộc gói 1–2. Số minh họa.')}` },
+  B7: { name: 'Thẩm định', chips: '<span class="chip mute">Chưa chạy</span>', desc: 'Agent độc lập, model khác, đọc toàn bộ hồ sơ và kiểm mẫu.', code: 'B7 · E8 (Opus)',
+    sub: EV('', 'KIỂM CHÉO', 'Đọc toàn hồ sơ, chấm 10 tiêu chí', '', FX(31, 'agent thẩm định ∉ {agent đã làm các bước}')) + EV('', 'CODE', 'Chọn mẫu kiểm', '', FX(32, 'n = ⌈0,10 · N⌉', 'N = 131 → n = 14')) + EV('', 'CỔNG', 'G7', '', FX(33, 'G7 ⇔ mọi cổng bắt buộc đạt ∧ không có phát hiện mức cao')),
+    viz: `<div class="g2">${C(`<h5>Lưới cổng của lượt (33)</h5><div class="g3" style="gap:6px">${['G0', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'G8'].map((g, i) => `<div class="card pad" style="text-align:center;padding:6px;background:${i === 4 ? 'var(--fill)' : 'var(--ok-soft)'}" data-go="blk" data-b="B${i}" data-tab="blk:viz"><b>${g}</b><div class="small">${i === 4 ? 'không áp dụng' : 'đạt'}</div></div>`).join('')}</div><div class="small muted" style="margin-top:6px">Bấm một cổng để mở bước tương ứng</div>`)}
+      ${C(`<h5>Mẫu kiểm (32)</h5><div class="row"><span class="big">14 / 131</span><span class="small muted">JD được đọc lại toàn văn</span></div><table style="margin-top:6px"><tr><th>Phát hiện</th><th>Mức</th></tr><tr><td>Chỉ báo bậc 2 "Giao tiếp" mơ hồ</td><td><span class="chip warn">thấp</span></td></tr><tr><td>JD P3 chiếm 31%</td><td><span class="chip mute">ghi nhận</span></td></tr></table><a data-go="g1-out" data-tab="out:audit">Thẩm định và bài học ở Kết quả →</a>`)}</div>${NA('Số minh họa (lượt thật chưa tới B7).')}` },
+  B8: { name: 'Hồ sơ và phát hành', chips: '<span class="chip mute">Chưa chạy</span>', desc: 'Lập hồ sơ, xếp loại thay đổi, tính phiên bản và tầng, ghi chuỗi nhật ký. Phát hành chỉ khi người duyệt chấp nhận.', code: 'B8 · code + T12',
+    sub: EV('', 'CODE', 'Xếp loại thay đổi', '', FX(38, 'S, D → MAJOR ; P, L → MINOR ; B → PATCH', 'Cấu trúc, Định nghĩa · Hồ sơ, Lớp biến động · Sửa lỗi')) + EV('', 'CODE', 'Mức tăng của từ điển', '', FX(39, 'Δ<sub>từ điển</sub> = max các Δ, với MAJOR của mục → MINOR của từ điển')) + EV('', 'CODE', 'Tầng và hạn rà soát', '', FX('34–35', 'tầng = Nội bộ khi không có bằng chứng do người thu ; rà soát sau 12 tháng')) + EV('', 'CODE', 'Chuỗi nhật ký', '', FX(36, 'h<sub>k</sub> = SHA-256(h<sub>k−1</sub> ‖ e<sub>k</sub>)')),
+    viz: `<div class="g2">${C(`<h5>Phiên bản dự kiến (38)–(39)</h5><table class="diff"><tr><td>Quản lý các bên liên quan</td><td class="add">— → 1.0.0</td></tr><tr><td>Quản lý rủi ro dự án</td><td class="chg">1.2.1 → 1.3.0</td></tr><tr><td>Giao tiếp</td><td class="maj">1.4.0 → 2.0.0</td></tr><tr><td><b>Từ điển</b></td><td><b>1.2.0 → 1.3.0</b></td></tr></table><a data-go="g1-out">Mở Kết quả để duyệt →</a>`)}
+      ${C(`<h5>Tầng phát hành (34)</h5><div class="stack" style="height:28px"><i style="flex:1;background:var(--c1)">Nội bộ ✓</i><i style="flex:1.3;background:var(--fill2);color:var(--ink3)">Sản phẩm thị trường</i><i style="flex:1.3;background:var(--fill2);color:var(--ink3)">Quyết định nhân sự</i></div><div class="small muted" style="margin-top:4px">Lên tầng cao cần bằng chứng do con người thu ở Đầu vào</div>
+        <h5 style="margin-top:10px">Chuỗi nhật ký (36)–(37)</h5><div class="chain"><span class="blk">h₁ 3a9f</span>→<span class="blk">h₂ 77c0</span>→<span class="blk">…</span>→<span class="blk">h₁₄₂ 9f3c</span></div>`)}</div>${NA('Tầng, hạn rà soát và phiên bản ba số thuộc gói 1–2; chuỗi nhật ký đã có. Số minh họa.')}` },
+};
+const ORDER = ['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8'];
+let curB = 'B5';
+function renderBlock(b) {
+  curB = b; const d = B[b];
+  document.getElementById('bsel').innerHTML = ORDER.map((k) => `<span class="${k === b ? 'on' : ''}" data-go="blk" data-b="${k}" data-keep="1">${k}</span>`).join('');
+  document.getElementById('b-title').textContent = `${b} · ${d.name}`;
+  document.getElementById('b-chips').innerHTML = d.chips;
+  document.getElementById('b-desc').textContent = d.desc;
+  document.getElementById('b-sub').innerHTML = d.sub;
+  document.getElementById('b-viz').innerHTML = d.viz;
+  document.getElementById('b-code').textContent = d.code;
+}
+const TITLES = {};
+document.querySelectorAll('.proto button[data-s]').forEach((b) => (TITLES[b.dataset.s] = b.textContent));
+function setTab(group, t) {
+  document.querySelectorAll(`.tabs[data-group="${group}"] span`).forEach((s) => s.classList.toggle('on', s.dataset.t === t));
+  document.querySelectorAll(`.pane[data-p^="${group}:"]`).forEach((p) => p.classList.toggle('on', p.dataset.p === `${group}:${t}`));
+}
+const DEF = { blk: 'sub', in: 'form', out: 'diff', dict: 'rel' };
+const GROUP = { blk: 'blk', 'g1-in': 'in', 'g1-out': 'out', dict: 'dict' };
+function curTab(g) { const s = document.querySelector(`.tabs[data-group="${g}"] span.on`); return s ? s.dataset.t : DEF[g]; }
+function go(s, b, tab, keep) {
+  document.querySelectorAll('.screen').forEach((x) => x.classList.toggle('on', x.id === s));
+  document.querySelectorAll('.proto button[data-s]').forEach((x) => x.classList.toggle('on', x.dataset.s === s));
+  const g = GROUP[s];
+  const t = tab ? tab.split(':')[1] : keep && g ? curTab(g) : DEF[g];
+  if (s === 'blk') renderBlock(b || curB);
+  if (g) setTab(g, t);
+  document.getElementById('crumb').textContent = 'Đang xem: ' + (TITLES[s] || s) + (s === 'blk' ? ' · ' + curB : '');
+  try { history.replaceState(null, '', '#' + [s, s === 'blk' ? curB : '', g ? t : ''].join('/')); } catch (e) {}
+  if (!keep) window.scrollTo(0, 0);
+}
+document.addEventListener('click', (e) => {
+  const tabEl = e.target.closest('.tabs[data-group] span');
+  if (tabEl) { const g = tabEl.parentElement.dataset.group; setTab(g, tabEl.dataset.t); const s = Object.keys(GROUP).find((k) => GROUP[k] === g); try { history.replaceState(null, '', '#' + [s, s === 'blk' ? curB : '', tabEl.dataset.t].join('/')); } catch (err) {} return; }
+  const f = e.target.closest('#fseg span');
+  if (f) { document.querySelectorAll('#fseg span').forEach((x) => x.classList.toggle('on', x === f)); document.querySelectorAll('[data-fv]').forEach((v) => (v.style.display = v.dataset.fv === f.dataset.f ? '' : 'none')); return; }
+  const el = e.target.closest('[data-go]');
+  if (el) { e.preventDefault(); e.stopPropagation(); go(el.dataset.go, el.dataset.b, el.dataset.tab, !!el.dataset.keep); return; }
+  const nb = e.target.closest('.proto button[data-s]');
+  if (nb) go(nb.dataset.s);
+});
+document.getElementById('hot').addEventListener('change', (e) => document.body.classList.toggle('hot', e.target.checked));
+const [hs, hb, ht] = location.hash.slice(1).split('/');
+const hg = GROUP[hs];
+go(hs && document.getElementById(hs) ? hs : 'map', hb || undefined, ht && hg ? hg + ':' + ht : undefined);
+</script>
+<script src="vendor/gsap.min.js"></script>
+<script src="wireframe-story.js"></script>
+</body>
+</html>

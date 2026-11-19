@@ -24,6 +24,13 @@ export interface TaskDef<I = any, O = any> {
   check(input: I, output: O): string[];
   /** Deterministic clean-up applied after validation (sorting, trimming, de-duplication). */
   normalize(input: I, output: O): O;
+  /**
+   * Input keys that are the same across the calls of one block (e.g. the competency list of E5). They go at the end
+   * of the system prompt, so the CLI's prompt cache can read them back instead of writing them again on every call.
+   */
+  shared?: string[];
+  /** P4.6: the input carries data from people; only its hash is kept in agent_result.input_canonical. */
+  sensitive?: boolean;
 }
 
 const COMMON = `Bạn là một bước xử lý trong dây chuyền xây khung năng lực. Bạn nhận MỘT đối tượng JSON trong thẻ <task_input> và trả về MỘT đối tượng JSON đúng schema được yêu cầu.
@@ -186,6 +193,7 @@ alternative_id: ID gần thứ hai trong shortlist nếu có, ngược lại "".
 });
 
 export const T7 = def({
+  sensitive: true,
   id: 'T7.claim_support',
   agent: 'A4/A5',
   block: 'B4',
@@ -388,7 +396,387 @@ export const T15 = def({
   normalize: (_i, o) => ({ match_ids: uniq(o.match_ids).sort() }),
 });
 
-export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15 } as const;
+/* ------------------------------------------------------------------------------------------------
+ * P1 agents (spec §5.2, §5.2a, model policy §12.5). Batched: one call reads many JDs, many clusters or many
+ * tasks. Inputs use short codes (j1, s1, t1, k1, c1, d1…) that the pipeline maps back; JD text arrives as
+ * numbered lines "s12 <text>", one segment per line, already masked (K2) and cut (K7, K8).
+ * ---------------------------------------------------------------------------------------------- */
+
+/** Segment ids of a numbered-lines text ("s12 text" per line). */
+export const lineIds = (text: string) => new Set([...text.matchAll(/^(s\d+) /gm)].map((m) => m[1]));
+const LinesDoc = z.strictObject({ id: z.string(), text: z.string() });
+const EXTRACT_RULES = `Nhiệm vụ (tasks): việc người giữ vị trí phải làm. Mỗi nhiệm vụ một câu "<Động từ> <đối tượng> [<mục đích nếu JD nêu>]", tối đa 25 từ; gộp ý trùng trong cùng JD; tối đa 12.
+Năng lực (competencies): khả năng thực hiện một loại việc, quan sát được qua hành vi. label: cụm danh từ 2–6 từ, không kèm cấp độ. definition: "Khả năng <làm gì> <trong phạm vi nào>.", tối đa 30 từ. Không liệt kê bằng cấp, số năm kinh nghiệm, công cụ đơn lẻ, phẩm chất chung chung; tối đa 10.
+segment_ids: mã dòng (s…) của chính JD đó làm căn cứ, ít nhất 1.`;
+
+export const E1 = def({
+  id: 'E1.jd_read',
+  agent: 'E1',
+  block: 'B1',
+  promptVersion: 'p2',
+  title: 'Đọc JD theo lô: phạm vi, nhiệm vụ, ứng viên năng lực',
+  system: `Bạn đọc một lô JD. Với MỖI JD trong "jds" trả về đúng một dòng có cùng id.
+verdict: IN_SCOPE (JD của đúng vị trí role_title hoặc tên gọi tương đương rõ ràng) | OUT_OF_SCOPE (không phải JD, hoặc vị trí khác) | UNSURE (thiếu thông tin, hoặc trộn nhiều vị trí).
+reason_code: ROLE_MATCH | DIFFERENT_ROLE | NOT_A_JD | MIXED_ROLES | INSUFFICIENT_TEXT. scope_segment_ids: tối đa 3 dòng làm căn cứ cho verdict.
+Chỉ khi IN_SCOPE mới trích tasks và competencies; ngược lại để hai danh sách rỗng.
+criteria: chấm 0–3 (chuỗi "0".."3"): A cấp bậc của tin khớp cấp bậc của vị trí; B lĩnh vực, ngành khớp bối cảnh; C trọng tâm công việc (tin mô tả rõ việc của vị trí, không phải tin chung chung). 3 = khớp rõ, 0 = không khớp hoặc không có thông tin.
+${EXTRACT_RULES}`,
+  input: z.strictObject({ role_title: z.string(), level: z.string(), industry: z.string(), purpose: z.string(), context: z.string(), jds: z.array(LinesDoc) }),
+  output: z.strictObject({
+    jds: z.array(
+      z.strictObject({
+        id: z.string(),
+        verdict: z.enum(['IN_SCOPE', 'OUT_OF_SCOPE', 'UNSURE']),
+        reason_code: z.enum(['ROLE_MATCH', 'DIFFERENT_ROLE', 'NOT_A_JD', 'MIXED_ROLES', 'INSUFFICIENT_TEXT']),
+        scope_segment_ids: z.array(z.string()),
+        criteria: z.strictObject({ A: z.enum(['0', '1', '2', '3']), B: z.enum(['0', '1', '2', '3']), C: z.enum(['0', '1', '2', '3']) }),
+        tasks: z.array(z.strictObject({ statement: z.string(), segment_ids: z.array(z.string()) })),
+        competencies: z.array(z.strictObject({ label: z.string(), definition: z.string(), segment_ids: z.array(z.string()) })),
+      }),
+    ),
+  }),
+  check: (i, o) => {
+    const e: string[] = [];
+    for (const d of i.jds) if (o.jds.filter((x) => x.id === d.id).length !== 1) e.push(`Cần đúng một dòng cho JD "${d.id}"`);
+    for (const x of o.jds) {
+      const d = i.jds.find((y) => y.id === x.id);
+      if (!d) {
+        e.push(`JD "${x.id}" không có trong input`);
+        continue;
+      }
+      const ids = lineIds(d.text);
+      e.push(...badRefs(`${x.id}.scope_segment_ids`, x.scope_segment_ids, ids));
+      for (const t of x.tasks) e.push(...badRefs(`${x.id}.tasks.segment_ids`, t.segment_ids, ids), ...(t.segment_ids.length ? [] : [`${x.id}: nhiệm vụ "${t.statement}" thiếu segment_ids`]));
+      for (const c of x.competencies) e.push(...badRefs(`${x.id}.competencies.segment_ids`, c.segment_ids, ids), ...(c.segment_ids.length ? [] : [`${x.id}: năng lực "${c.label}" thiếu segment_ids`]));
+    }
+    return e;
+  },
+  normalize: (_i, o) => ({
+    jds: [...o.jds]
+      .sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true }))
+      .map((x) => ({
+        ...x,
+        scope_segment_ids: uniq(x.scope_segment_ids).slice(0, 3),
+        tasks: x.verdict === 'IN_SCOPE' ? x.tasks.map((t) => ({ statement: clean(t.statement), segment_ids: uniq(t.segment_ids) })).filter((t) => t.statement).slice(0, 12) : [],
+        competencies: x.verdict === 'IN_SCOPE' ? x.competencies.map((c) => ({ label: clean(c.label), definition: clean(c.definition), segment_ids: uniq(c.segment_ids) })).filter((c) => c.label).slice(0, 10) : [],
+      })),
+  }),
+});
+
+const MergeEdit = z.strictObject({ cluster_ids: z.array(z.string()), canonical_id: z.string() });
+function mergeErrors(merges: { cluster_ids: string[]; canonical_id: string }[], clusterIds: Set<string>, canonicalOk: (m: { cluster_ids: string[]; canonical_id: string }) => boolean) {
+  const e: string[] = [];
+  const seen = new Set<string>();
+  for (const m of merges) {
+    if (m.cluster_ids.length < 2) e.push('merges: mỗi lần gộp cần ít nhất 2 cụm');
+    e.push(...badRefs('merges.cluster_ids', m.cluster_ids, clusterIds));
+    for (const c of m.cluster_ids) {
+      if (seen.has(c)) e.push(`Cụm "${c}" nằm trong hơn một lần gộp`);
+      seen.add(c);
+    }
+    if (!canonicalOk(m)) e.push(`canonical_id "${m.canonical_id}" không thuộc các cụm được gộp`);
+  }
+  return e;
+}
+
+export const E23 = def({
+  id: 'E23.task_review',
+  agent: 'E2+E3',
+  block: 'B2',
+  promptVersion: 'p2',
+  title: 'Neo nghề và duyệt cụm nhiệm vụ (chỉ trả phần sửa)',
+  system: `Code đã gom sơ bộ các nhiệm vụ trích từ nhiều JD thành cụm (clusters). Bạn chỉ trả về PHẦN SỬA:
+- merges: các cụm mô tả CÙNG MỘT VIỆC với cùng đối tượng nên gộp; canonical_id là mã nhiệm vụ (t…) có câu rõ và đầy đủ nhất trong các cụm đó. Liên quan nhưng khác việc thì không gộp.
+- splits: một cụm lẫn việc khác nhau; task_ids là các nhiệm vụ cần tách ra thành cụm riêng (không được là toàn bộ cụm).
+Không có gì cần sửa thì trả hai danh sách rỗng.
+occupation: nghề của vị trí trong Danh mục nghề nghiệp Việt Nam (catalog, mỗi dòng "mã tên nghề", cấp 4). vn_code: mã bốn chữ số khớp nhất với role_title và các nhiệm vụ, lấy đúng từ catalog; catalog rỗng hoặc không có nghề nào khớp thì "". title: tên nghề đúng như trong catalog (hoặc ""). reason: một câu nêu căn cứ.`,
+  input: z.strictObject({ role_title: z.string(), catalog: z.string(), clusters: z.array(z.strictObject({ id: z.string(), tasks: z.array(z.strictObject({ id: z.string(), statement: z.string() })) })) }),
+  output: z.strictObject({
+    occupation: z.strictObject({ vn_code: z.string(), title: z.string(), reason: z.string() }),
+    merges: z.array(MergeEdit),
+    splits: z.array(z.strictObject({ cluster_id: z.string(), task_ids: z.array(z.string()) })),
+  }),
+  check: (i, o) => {
+    const cids = new Set(i.clusters.map((c) => c.id));
+    const tasksOf = new Map(i.clusters.map((c) => [c.id, new Set(c.tasks.map((t) => t.id))]));
+    const e = mergeErrors(o.merges, cids, (m) => m.cluster_ids.some((c) => tasksOf.get(c)?.has(m.canonical_id)));
+    const moved = new Map<string, Set<string>>();
+    for (const s of o.splits) {
+      const seen = moved.get(s.cluster_id) ?? new Set<string>();
+      for (const id of s.task_ids) if (seen.has(id)) e.push(`splits: nhiệm vụ "${id}" nằm trong hơn một lần tách của cụm "${s.cluster_id}"`);
+      s.task_ids.forEach((id) => seen.add(id));
+      moved.set(s.cluster_id, seen);
+      if (tasksOf.get(s.cluster_id) && seen.size >= tasksOf.get(s.cluster_id)!.size) e.push(`splits: các lần tách của cụm "${s.cluster_id}" không được lấy hết cụm`);
+      const ts = tasksOf.get(s.cluster_id);
+      if (!ts) e.push(`splits.cluster_id "${s.cluster_id}" không có trong input`);
+      else {
+        e.push(...badRefs(`splits.${s.cluster_id}.task_ids`, s.task_ids, ts));
+        if (!s.task_ids.length || s.task_ids.length >= ts.size) e.push(`splits: cụm "${s.cluster_id}" phải tách một phần, không rỗng và không phải toàn bộ`);
+      }
+    }
+    const code = o.occupation.vn_code.trim();
+    if (code && !i.catalog) e.push('occupation.vn_code phải là "" khi catalog rỗng');
+    if (code && i.catalog && !i.catalog.split('\n').some((l) => l.startsWith(`${code} `))) e.push(`occupation.vn_code "${code}" không có trong catalog`);
+    return e;
+  },
+  normalize: (_i, o) => ({ occupation: { vn_code: o.occupation.vn_code.trim(), title: clean(o.occupation.title), reason: clean(o.occupation.reason) }, merges: o.merges.map((m) => ({ ...m, cluster_ids: uniq(m.cluster_ids).sort() })), splits: o.splits.map((s) => ({ ...s, task_ids: uniq(s.task_ids).sort() })) }),
+});
+
+export const E4 = def({
+  id: 'E4.candidate_review',
+  agent: 'E4',
+  block: 'B3',
+  promptVersion: 'p2',
+  title: 'Duyệt cụm ứng viên năng lực và so với từ điển (chỉ trả phần sửa)',
+  system: `Code đã gom sơ bộ ứng viên năng lực thành cụm và tìm sẵn năng lực gần nhất trong từ điển (near). Bạn trả về:
+- merges: các cụm CÙNG NỘI HÀM nên gộp (so định nghĩa, không chỉ so tên); canonical_id là mã cụm có tên và định nghĩa rõ nhất. Liên quan nhưng khác phạm vi thì không gộp.
+- matches: với MỖI cụm có danh sách near khác rỗng, đúng một dòng:
+  decision: REUSE (cùng nội hàm với một năng lực near; dùng lại nguyên định nghĩa) | UPDATE (cùng nội hàm, căn cứ mới cho thấy định nghĩa cần sửa/mở rộng) | ADD (không near nào cùng nội hàm) | NEEDS_REVIEW (không đủ chắc). Khi phân vân giữa REUSE và ADD chọn NEEDS_REVIEW.
+  target_id: mã near (d…) cho REUSE/UPDATE/NEEDS_REVIEW; "" cho ADD. boundary_code: SAME_MEANING | NARROWER | BROADER | OVERLAP_PARTIAL | DIFFERENT. confidence: HIGH | MEDIUM | LOW.
+Cụm không có near thì không cần dòng nào trong matches.
+- support: external_tasks là nhiệm vụ của nghề chuẩn ngoài (O*NET, tiếng Anh). Với mỗi cụm, liệt kê các nhiệm vụ x… mà người làm CẦN năng lực của cụm để thực hiện. Chỉ ghi khi rõ ràng; cụm không có thì bỏ qua. external_tasks rỗng thì support rỗng.`,
+  input: z.strictObject({
+    clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), aliases: z.array(z.string()), near: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string() })) })),
+    external_tasks: z.array(z.strictObject({ id: z.string(), statement: z.string() })),
+  }),
+  output: z.strictObject({
+    support: z.array(z.strictObject({ cluster_id: z.string(), task_ids: z.array(z.string()) })),
+    merges: z.array(MergeEdit),
+    matches: z.array(
+      z.strictObject({
+        cluster_id: z.string(),
+        decision: z.enum(['REUSE', 'UPDATE', 'ADD', 'NEEDS_REVIEW']),
+        target_id: z.string(),
+        boundary_code: z.enum(['SAME_MEANING', 'NARROWER', 'BROADER', 'OVERLAP_PARTIAL', 'DIFFERENT']),
+        confidence: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+      }),
+    ),
+  }),
+  check: (i, o) => {
+    const cids = new Set(i.clusters.map((c) => c.id));
+    const e = mergeErrors(o.merges, cids, (m) => m.cluster_ids.includes(m.canonical_id));
+    for (const c of i.clusters.filter((c) => c.near.length)) if (o.matches.filter((m) => m.cluster_id === c.id).length !== 1) e.push(`Cần đúng một dòng matches cho cụm "${c.id}"`);
+    for (const m of o.matches) {
+      const c = i.clusters.find((x) => x.id === m.cluster_id);
+      if (!c) {
+        e.push(`matches.cluster_id "${m.cluster_id}" không có trong input`);
+        continue;
+      }
+      const near = new Set(c.near.map((n) => n.id));
+      if (m.decision === 'ADD' && m.target_id) e.push(`${m.cluster_id}: ADD phải có target_id rỗng`);
+      if (m.decision !== 'ADD' && !near.has(m.target_id)) e.push(`${m.cluster_id}: target_id "${m.target_id}" không thuộc near của cụm`);
+    }
+    const xids = new Set(i.external_tasks.map((x) => x.id));
+    for (const sp of o.support) {
+      if (!cids.has(sp.cluster_id)) e.push(`support.cluster_id "${sp.cluster_id}" không có trong input`);
+      e.push(...badRefs(`support.${sp.cluster_id}.task_ids`, sp.task_ids, xids));
+    }
+    return e;
+  },
+  normalize: (_i, o) => ({ support: o.support.filter((x) => x.task_ids.length).map((x) => ({ cluster_id: x.cluster_id, task_ids: uniq(x.task_ids).sort() })).sort((a, b) => a.cluster_id.localeCompare(b.cluster_id, 'en', { numeric: true })), merges: o.merges.map((m) => ({ ...m, cluster_ids: uniq(m.cluster_ids).sort() })), matches: [...o.matches].sort((a, b) => a.cluster_id.localeCompare(b.cluster_id, 'en', { numeric: true })) }),
+});
+
+export const E5 = def({
+  id: 'E5.task_matrix',
+  agent: 'E5',
+  block: 'B5',
+  promptVersion: 'p1',
+  title: 'Ma trận nhiệm vụ × năng lực',
+  shared: ['competencies'],
+  system: `Danh sách năng lực (competencies) nằm trong <shared_input>; danh sách nhiệm vụ nằm trong <task_input>.
+Với MỖI nhiệm vụ trả về đúng một dòng: competency_ids là các năng lực CẦN THIẾT để làm nhiệm vụ (thiếu thì không làm được; không chọn năng lực chỉ liên quan chung chung), có thể rỗng.
+segment_ids: các dòng (s…) của chính nhiệm vụ đó làm căn cứ; bắt buộc có khi competency_ids khác rỗng.`,
+  input: z.strictObject({ competencies: z.array(Label), tasks: z.array(z.strictObject({ id: z.string(), statement: z.string(), segments: z.array(Seg) })) }),
+  output: z.strictObject({ rows: z.array(z.strictObject({ task_id: z.string(), competency_ids: z.array(z.string()), segment_ids: z.array(z.string()) })) }),
+  check: (i, o) => {
+    const cids = new Set(i.competencies.map((c) => c.id));
+    const e: string[] = [];
+    for (const t of i.tasks) if (o.rows.filter((r) => r.task_id === t.id).length !== 1) e.push(`Cần đúng một dòng cho nhiệm vụ "${t.id}"`);
+    for (const r of o.rows) {
+      const t = i.tasks.find((x) => x.id === r.task_id);
+      if (!t) {
+        e.push(`task_id "${r.task_id}" không có trong input`);
+        continue;
+      }
+      e.push(...badRefs(`${r.task_id}.competency_ids`, r.competency_ids, cids), ...badRefs(`${r.task_id}.segment_ids`, r.segment_ids, segIds(t.segments)));
+      if (r.competency_ids.length && !r.segment_ids.length) e.push(`${r.task_id}: thiếu segment_ids`);
+    }
+    return e;
+  },
+  normalize: (_i, o) => ({ rows: [...o.rows].map((r) => ({ task_id: r.task_id, competency_ids: uniq(r.competency_ids).sort(), segment_ids: uniq(r.segment_ids).sort() })).sort((a, b) => a.task_id.localeCompare(b.task_id, 'en', { numeric: true })) }),
+});
+
+export const E6 = def({
+  id: 'E6.indicator_write',
+  agent: 'E6',
+  block: 'B6',
+  promptVersion: 'p3',
+  title: 'Soạn chỉ báo hành vi ở bậc 1, 3, 5 cho nhiều năng lực',
+  system: `Với MỖI năng lực trong "competencies" trả về đúng một dòng, gồm ba bậc "1", "3", "5"; mỗi bậc 2–4 CHỈ BÁO HÀNH VI quan sát được trong bối cảnh vị trí.
+- Bậc 1: làm được khi có hướng dẫn, việc quen thuộc. Bậc 3: tự làm độc lập, việc thường gặp. Bậc 5: làm được ở việc mới, phức tạp, và dẫn dắt người khác. Bậc cao phải đòi hỏi hơn bậc thấp.
+- Mỗi chỉ báo một câu theo mẫu "Khi <tình huống>, <động từ quan sát được> <đối tượng> nhằm <kết quả kiểm được>.", tối đa 35 từ, MỘT hành vi, của chính cá nhân. Không dùng "hiểu", "nắm", "có khả năng", "biết", không mô tả tính cách.
+- Chỉ báo phải phân biệt được năng lực này với các năng lực khác trong danh sách.
+- Chỉ dựa trên tasks và segments của năng lực đó. segment_ids: mã đoạn (s…) của năng lực đó, ít nhất 1.
+- revision_note khác rỗng: bản trước bị đọc nhầm (năng lực hoặc bậc); viết lại để khắc phục đúng điểm đó.
+- outcome_ids: các kết quả chính (trong "outcomes") mà năng lực đó góp phần tạo ra; rỗng nếu outcomes rỗng.`,
+  input: z.strictObject({ role_title: z.string(), outcomes: z.array(z.strictObject({ id: z.string(), text: z.string() })), competencies: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), tasks: z.array(z.string()), segments: z.array(Seg), required_level: z.string(), revision_note: z.string() })) }),
+  output: z.strictObject({
+    items: z.array(z.strictObject({ competency_id: z.string(), outcome_ids: z.array(z.string()), levels: z.array(z.strictObject({ level: z.enum(['1', '3', '5']), indicators: z.array(z.strictObject({ statement: z.string(), segment_ids: z.array(z.string()) })) })) })),
+  }),
+  check: (i, o) => {
+    const e: string[] = [];
+    for (const c of i.competencies) if (o.items.filter((x) => x.competency_id === c.id).length !== 1) e.push(`Cần đúng một dòng cho năng lực "${c.id}"`);
+    for (const x of o.items) {
+      const c = i.competencies.find((y) => y.id === x.competency_id);
+      if (!c) {
+        e.push(`competency_id "${x.competency_id}" không có trong input`);
+        continue;
+      }
+      for (const L of ['1', '3', '5']) {
+        const lv = x.levels.filter((l) => l.level === L);
+        if (lv.length !== 1) e.push(`${x.competency_id}: cần đúng một mục cho bậc ${L}`);
+        else if (lv[0].indicators.length < 2 || lv[0].indicators.length > 4) e.push(`${x.competency_id} bậc ${L}: cần 2–4 chỉ báo (đang ${lv[0].indicators.length})`);
+      }
+      e.push(...badRefs(`${x.competency_id}.outcome_ids`, x.outcome_ids, new Set(i.outcomes.map((o) => o.id))));
+      for (const l of x.levels) for (const ind of l.indicators) e.push(...badRefs(`${x.competency_id}.segment_ids`, ind.segment_ids, segIds(c.segments)), ...(ind.segment_ids.length ? [] : [`${x.competency_id}: chỉ báo "${ind.statement}" thiếu segment_ids`]));
+    }
+    return e;
+  },
+  normalize: (_i, o) => ({
+    items: [...o.items]
+      .sort((a, b) => a.competency_id.localeCompare(b.competency_id, 'en', { numeric: true }))
+      .map((x) => ({ competency_id: x.competency_id, outcome_ids: uniq(x.outcome_ids).sort(), levels: [...x.levels].sort((a, b) => a.level.localeCompare(b.level)).map((l) => ({ level: l.level, indicators: l.indicators.map((y) => ({ statement: clean(y.statement), segment_ids: uniq(y.segment_ids).sort() })).filter((y) => y.statement).slice(0, 4) })) })),
+  }),
+});
+
+export const E7 = def({
+  id: 'E7.retranslation',
+  agent: 'E7',
+  block: 'B6',
+  promptVersion: 'p2',
+  title: 'Dịch ngược mù vào năng lực và bậc; xếp lớp năng lực (một ghế)',
+  system: `Bạn là MỘT người đánh giá độc lập, đóng vai nêu trong seat_role. Bạn không biết đáp án dự kiến; các chỉ báo đã được xáo thứ tự, che mã và che bậc.
+1) votes: với MỖI chỉ báo trả về đúng một dòng: competency_id là mã nhãn mà chỉ báo mô tả; level là bậc "1" (làm khi có hướng dẫn, việc quen), "3" (tự làm độc lập) hoặc "5" (việc mới, phức tạp, dẫn dắt người khác). Không chắc thì để "" (bỏ trống).
+2) classes: với MỖI nhãn trả về đúng một dòng: class là "I" (năng lực nền tảng chung), "II" (năng lực chuyên môn của nghề), "III" (năng lực đặc thù của vị trí, tổ chức) hoặc "META" (năng lực học hỏi, thích ứng chung); không chắc thì "".`,
+  input: z.strictObject({ seat: z.string(), seat_role: z.string(), indicators: z.array(z.strictObject({ id: z.string(), statement: z.string() })), labels: z.array(Label) }),
+  output: z.strictObject({
+    votes: z.array(z.strictObject({ indicator_id: z.string(), competency_id: z.string(), level: z.enum(['1', '3', '5', '']) })),
+    classes: z.array(z.strictObject({ competency_id: z.string(), class: z.enum(['I', 'II', 'III', 'META', '']) })),
+  }),
+  check: (i, o) => {
+    const labels = new Set([...i.labels.map((l) => l.id), '']);
+    const ids = i.indicators.map((x) => x.id);
+    return [
+      ...badRefs('votes.competency_id', o.votes.map((v) => v.competency_id), labels),
+      ...badRefs('votes.indicator_id', o.votes.map((v) => v.indicator_id), new Set(ids)),
+      ...ids.filter((id) => o.votes.filter((v) => v.indicator_id === id).length !== 1).map((id) => `Thiếu hoặc trùng phiếu cho chỉ báo "${id}"`),
+      ...badRefs('classes.competency_id', o.classes.map((c) => c.competency_id), new Set(i.labels.map((l) => l.id))),
+      ...i.labels.filter((l) => o.classes.filter((c) => c.competency_id === l.id).length !== 1).map((l) => `Thiếu hoặc trùng lớp cho nhãn "${l.id}"`),
+    ];
+  },
+  normalize: (_i, o) => ({ votes: [...o.votes].sort((a, b) => a.indicator_id.localeCompare(b.indicator_id)), classes: [...o.classes].sort((a, b) => a.competency_id.localeCompare(b.competency_id)) }),
+});
+
+const AUDIT_VARS = ['collection_method', 'content_type', 'content_build', 'granularity', 'goal_link', 'independent_review', 'prioritisation', 'reliability', 'keep_drop_criteria', 'documentation'] as const;
+export const E8 = def({
+  id: 'E8.audit_review',
+  agent: 'E8',
+  block: 'B7',
+  promptVersion: 'p5',
+  title: 'Thẩm định độc lập: 10 biến, nội dung từng mục, mẫu kiểm lại',
+  system: `Bạn là người thẩm định độc lập. Bạn không tham gia bước nào trước; bạn chỉ đọc hồ sơ đã chốt, không sửa và không phê duyệt.
+1) items: với MỖI mục, các đoạn căn cứ có hỗ trợ nội dung (tên, định nghĩa, chỉ báo) không: SUPPORTED | PARTIAL | NOT_SUPPORTED.
+Căn cứ của chỉ báo: chỉ báo theo bậc 1, 3, 5 được soạn từ định nghĩa năng lực và đã qua dịch ngược mù của ba ghế (công thức 27); JD hiếm khi mô tả hành vi theo bậc. Vì vậy căn cứ được đánh giá ở mức năng lực (tên, định nghĩa có đoạn JD hỗ trợ). Chỉ báo không có câu JD nêu đúng hành vi đó là bình thường: không phải lý do cho NOT_SUPPORTED, và nếu ghi finding thì tối đa LOW. Vẫn ghi finding khi chỉ báo không quan sát được, lạc phạm vi của năng lực hoặc mâu thuẫn với căn cứ. HIGH chỉ khi tên hoặc định nghĩa năng lực không có căn cứ, hoặc chỉ báo trái với căn cứ.
+2) sample: với MỖI câu trong sample (câu JD đã được mã hóa vào một năng lực), mã có đúng không: code_ok "YES" | "NO".
+3) variables: chấm đúng 10 biến (mỗi biến một dòng): collection_method (phương pháp thu thập), content_type (loại nội dung), content_build (cách xây nội dung), granularity (độ chi tiết), goal_link (liên kết mục tiêu), independent_review (rà soát độc lập), prioritisation (xếp ưu tiên), reliability (độ tin cậy), keep_drop_criteria (tiêu chí giữ và loại), documentation (tài liệu hóa). result: PASS | PASS_COND | FAIL; plan: một câu kế hoạch xử lý khi PASS_COND hoặc FAIL, "" khi PASS. Dựa vào gates và stats của hồ sơ. Hồ sơ lớn được chia nhiều lời gọi: items của một lời gọi chỉ là một phần hồ sơ; lời gọi có gates rỗng là lô phụ, chỉ duyệt items (variables = [], sample = []). Câu sample chỉ cần đối chiếu với tên năng lực ghi ở code; năng lực đó có thể nằm ở lô khác, không có trong items, và đó không phải lỗi.
+4) findings có căn cứ (có thể rỗng): severity LOW | MEDIUM | HIGH | CRITICAL (CRITICAL chỉ khi nội dung sẽ ghi vào từ điển mà không có căn cứ, hoặc dữ liệu có dấu hiệu bị thao túng); type UNSUPPORTED_CONTENT | DUPLICATE_CONCEPT | SCOPE_DRIFT | INDICATOR_NOT_OBSERVABLE | EVIDENCE_GAP | PROCESS_ORDER | OTHER; item_id ("" nếu chung); expected, observed: mỗi trường một câu.
+5) conclusion_code: CLEAR | CLEAR_WITH_NOTES | NOT_CLEAR. unchecked_scope: một câu nêu phạm vi không kiểm được.`,
+  input: z.strictObject({
+    role_title: z.string(),
+    purpose: z.string(),
+    items: z.array(z.strictObject({ item_id: z.string(), action: z.string(), label: z.string(), definition: z.string(), indicators: z.array(z.string()), segments: z.array(Seg) })),
+    sample: z.array(z.strictObject({ id: z.string(), text: z.string(), code: z.string() })),
+    gates: z.array(z.strictObject({ block: z.string(), name: z.string(), status: z.string() })),
+    stats: z.array(z.strictObject({ name: z.string(), value: z.string() })),
+  }),
+  output: z.strictObject({
+    items: z.array(z.strictObject({ item_id: z.string(), support_check: z.enum(['SUPPORTED', 'PARTIAL', 'NOT_SUPPORTED']) })),
+    sample: z.array(z.strictObject({ id: z.string(), code_ok: z.enum(['YES', 'NO']) })),
+    variables: z.array(z.strictObject({ variable: z.enum(AUDIT_VARS), result: z.enum(['PASS', 'PASS_COND', 'FAIL']), plan: z.string() })),
+    findings: z.array(
+      z.strictObject({
+        severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+        type: z.enum(['UNSUPPORTED_CONTENT', 'DUPLICATE_CONCEPT', 'SCOPE_DRIFT', 'INDICATOR_NOT_OBSERVABLE', 'EVIDENCE_GAP', 'PROCESS_ORDER', 'OTHER']),
+        item_id: z.string(),
+        expected: z.string(),
+        observed: z.string(),
+      }),
+    ),
+    conclusion_code: z.enum(['CLEAR', 'CLEAR_WITH_NOTES', 'NOT_CLEAR']),
+    unchecked_scope: z.string(),
+  }),
+  check: (i, o) => {
+    const ids = i.items.map((x) => x.item_id);
+    const set = new Set(ids);
+    const sids = i.sample.map((x) => x.id);
+    return [
+      ...badRefs('items.item_id', o.items.map((x) => x.item_id), set),
+      ...ids.filter((id) => o.items.filter((x) => x.item_id === id).length !== 1).map((id) => `Thiếu hoặc trùng đánh giá cho mục "${id}"`),
+      ...badRefs('findings.item_id', o.findings.map((f) => f.item_id).filter(Boolean), set),
+      ...badRefs('sample.id', o.sample.map((x) => x.id), new Set(sids)),
+      ...sids.filter((id) => o.sample.filter((x) => x.id === id).length !== 1).map((id) => `Thiếu hoặc trùng kết luận cho câu mẫu "${id}"`),
+      // only the main call (with gates) scores the ten variables; a side batch reviews items only
+      ...(i.gates.length ? AUDIT_VARS.filter((v) => o.variables.filter((x) => x.variable === v).length !== 1).map((v) => `Cần đúng một dòng cho biến "${v}"`) : o.variables.length ? ['Lô phụ (gates rỗng): variables phải rỗng'] : []),
+    ];
+  },
+  normalize: (_i, o) => ({
+    ...o,
+    items: [...o.items].sort((a, b) => a.item_id.localeCompare(b.item_id)),
+    sample: [...o.sample].sort((a, b) => a.id.localeCompare(b.id, 'en', { numeric: true })),
+    variables: [...o.variables].sort((a, b) => AUDIT_VARS.indexOf(a.variable) - AUDIT_VARS.indexOf(b.variable)).map((v) => ({ ...v, plan: clean(v.plan) })),
+    findings: o.findings.map((f) => ({ ...f, expected: clean(f.expected), observed: clean(f.observed) })).sort((a, b) => (a.item_id + a.type).localeCompare(b.item_id + b.type)),
+    unchecked_scope: clean(o.unchecked_scope),
+  }),
+});
+
+/** Frame only in P1 (spec §5.2); wired to G3 with Cohen's kappa in P2. */
+export const E9 = def({
+  id: 'E9.recode',
+  agent: 'E9',
+  block: 'B3',
+  promptVersion: 'p1',
+  title: 'Mã hóa kiểm chéo: câu thuộc năng lực nào',
+  system: `Bạn mã hóa lại độc lập một mẫu câu JD. Với MỖI câu chọn đúng một mã năng lực trong "codes", hoặc "NONE" nếu câu không nêu năng lực nào. Bạn không biết cách mã hóa trước đó.`,
+  input: z.strictObject({ codes: z.array(Label), sentences: z.array(z.strictObject({ id: z.string(), text: z.string() })) }),
+  output: z.strictObject({ codes: z.array(z.strictObject({ sentence_id: z.string(), code_id: z.string() })) }),
+  check: (i, o) => {
+    const ok = new Set([...i.codes.map((c) => c.id), 'NONE']);
+    const ids = i.sentences.map((s) => s.id);
+    return [...badRefs('codes.code_id', o.codes.map((c) => c.code_id), ok), ...ids.filter((id) => o.codes.filter((c) => c.sentence_id === id).length !== 1).map((id) => `Cần đúng một mã cho câu "${id}"`)];
+  },
+});
+
+const Score = z.enum(['1', '2', '3', '4', '5', '']);
+/** One seat of the priority/level round (spec §6.1a). In P1 only the level is used, when the session has a rubric. */
+export const E10 = def({
+  id: 'E10.seat_score',
+  agent: 'E10',
+  block: 'B5',
+  promptVersion: 'p1',
+  title: 'Chấm quan trọng, phân biệt và bậc (một ghế)',
+  system: `Bạn là MỘT người chấm độc lập, đóng vai nêu trong seat_role, dùng thang trong scale_note. Với MỖI ứng viên trả về đúng một dòng gồm ba điểm nguyên 1–5 dạng chuỗi, hoặc "" nếu căn cứ không đủ:
+importance: mức quan trọng với vị trí; discrimination: mức phân biệt người giỏi và người trung bình; level: bậc yêu cầu.
+Chỉ dựa trên tên, định nghĩa và các đoạn căn cứ; không mặc định chọn điểm giữa.`,
+  input: z.strictObject({ seat: z.string(), seat_role: z.string(), scale_note: z.string(), role_title: z.string(), candidates: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), segments: z.array(Seg) })) }),
+  output: z.strictObject({ scores: z.array(z.strictObject({ candidate_id: z.string(), importance: Score, discrimination: Score, level: Score })) }),
+  check: (i, o) => {
+    const ids = i.candidates.map((c) => c.id);
+    return [...badRefs('scores.candidate_id', o.scores.map((s) => s.candidate_id), new Set(ids)), ...ids.filter((id) => o.scores.filter((s) => s.candidate_id === id).length !== 1).map((id) => `Cần đúng một dòng cho ứng viên "${id}"`)];
+  },
+  normalize: (_i, o) => ({ scores: [...o.scores].sort((a, b) => a.candidate_id.localeCompare(b.candidate_id, 'en', { numeric: true })) }),
+});
+
+export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E5, E6, E7, E8, E9, E10 } as const;
 export type TaskName = keyof typeof TASKS;
 export type TaskInput<K extends TaskName> = z.infer<(typeof TASKS)[K]['input']>;
 export type TaskOutput<K extends TaskName> = z.infer<(typeof TASKS)[K]['output']>;

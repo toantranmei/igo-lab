@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { noHorizontalOverflow } from './helpers';
 
 test('A03 · 2D/3D cùng node/cạnh; chọn cạnh xem refs; ma trận, filter, so sánh; điện thoại không tràn ngang', async ({ page }) => {
-  await page.goto('/s/example/dictionary');
+  await page.goto('/demo/dictionary');
   await page.locator('[data-dict-tab="network2d"]').click();
   const root2d = page.locator('[data-node-count]').first();
   await expect(root2d).toHaveAttribute('data-node-count', '36');
@@ -47,11 +47,11 @@ test('A03 · 2D/3D cùng node/cạnh; chọn cạnh xem refs; ma trận, filter,
     await noHorizontalOverflow(page);
   }
   for (const t of ['line', 'inputs', 'framework', 'audit']) {
-    await page.goto(`/s/example/${t}`);
+    await page.goto(`/demo/${t}`);
     await expect(page.locator(`#${t}`)).toBeVisible();
     await noHorizontalOverflow(page);
   }
-  await page.goto('/s/example/line');
+  await page.goto('/demo/line');
   await page.locator('#step').click();
   await expect(page.locator('#step-guide')).toBeVisible();
   await expect(page.locator('#guide-next')).toBeInViewport();

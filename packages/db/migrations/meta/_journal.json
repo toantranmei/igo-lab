@@ -36,6 +36,48 @@
       "when": 1794920000000,
       "tag": "0004_attempt_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794930000000,
+      "tag": "0005_run_tracking",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794940000000,
+      "tag": "0006_agent_measure",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794950000000,
+      "tag": "0007_charter",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794960000000,
+      "tag": "0008_semver",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794970000000,
+      "tag": "0009_human_data",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794980000000,
+      "tag": "0010_production",
+      "breakpoints": true
     }
   ]
 }

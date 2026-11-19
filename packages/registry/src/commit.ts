@@ -1,7 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { AppError, type ChangeItem } from '@cl/contract';
 import { appendEvent, hashJson, newId, t, type Db, type DbOrTx } from '@cl/db';
-import { latestRelease, loadRecords, versionLabelFor, type CData, type GData, type Member, type RData, type RecordKind, type WData } from './dictionary';
+import { latestRelease, loadRecords, type CData, type GData, type Member, type RData, type RecordKind, type WData } from './dictionary';
+import { bump, classify, fmt, nextDictionaryLabel, parseSemver, releaseNotes, semverOf, type Bump, type ChangeType } from './versioning';
 
 export interface CandidateItem {
   item_id: string;
@@ -51,14 +52,23 @@ async function lockWorkspace(tx: DbOrTx, workspaceId: string) {
   await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'registry:' + workspaceId}))`);
 }
 
+/** Competencies whose change was dropped but which stay in the frameworks at their base version. */
+export function keptAtBaseIds(items: CandidateItem[], dropped: string[]): Set<string> {
+  const dropSet = new Set(dropped);
+  return new Set(items.filter((i) => i.entity === 'C' && (dropSet.has(i.item_id) || i.action === 'NEEDS_REVIEW') && i.base_version != null).map((i) => i.id));
+}
 /** Items that survive the user's decision, with R/W payloads filtered for dropped competencies. */
 export function effectiveItems(items: CandidateItem[], dropped: string[]): CandidateItem[] {
   const dropSet = new Set(dropped);
-  const droppedC = new Set(items.filter((i) => i.entity === 'C' && (dropSet.has(i.item_id) || i.action === 'NEEDS_REVIEW')).map((i) => i.id));
+  const droppedAll = items.filter((i) => i.entity === 'C' && (dropSet.has(i.item_id) || i.action === 'NEEDS_REVIEW'));
+  // a dropped change to a competency that is already in the base keeps it at its base version; only a dropped new
+  // competency leaves the framework
+  const droppedC = new Set(droppedAll.filter((i) => i.base_version == null).map((i) => i.id));
+  const keptAtBase = new Set(droppedAll.filter((i) => i.base_version != null).map((i) => i.id));
   return items
-    .filter((i) => !dropSet.has(i.item_id) && i.action !== 'NEEDS_REVIEW' && !(i.depends_on && droppedC.has(i.depends_on)) && !(i.entity === 'C' && droppedC.has(i.id)))
+    .filter((i) => !dropSet.has(i.item_id) && i.action !== 'NEEDS_REVIEW' && !(i.depends_on && (droppedC.has(i.depends_on) || (keptAtBase.has(i.depends_on) && i.action !== 'REUSE'))) && !(i.entity === 'C' && (droppedC.has(i.id) || keptAtBase.has(i.id))))
     .map((i) => {
-      if (!i.data || !droppedC.size) return i;
+      if (!i.data || (!droppedC.size && !keptAtBase.size)) return i;
       if (i.entity === 'R') return { ...i, data: { ...i.data, requirements: (i.data as RData).requirements.filter((q) => !droppedC.has(q.competency_id)) } };
       if (i.entity === 'W') return { ...i, data: { ...i.data, tasks: (i.data as WData).tasks.map((k) => ({ ...k, competency_ids: k.competency_ids.filter((c) => !droppedC.has(c)) })) } };
       if (i.entity === 'V') return { ...i, data: { ...i.data, competency_ids: (i.data.competency_ids ?? []).filter((c: string) => !droppedC.has(c)) } };
@@ -107,10 +117,27 @@ export async function commitCandidate(db: Db, workspaceId: string, candidateId: 
         const baseMembers = (latest?.members as Member[] | undefined) ?? [];
         const members = new Map(baseMembers.map((m) => [`${m.kind}|${m.id}`, m]));
         const seq = (latest?.seq ?? 0) + 1;
-        const versionLabel = versionLabelFor(seq);
+        // the next storage version is above every version ever written for that id (a revert may point back to an older one)
+        const ids = [...new Set(items.map((i) => i.id))];
+        const allRows = ids.length ? await tx.select({ kind: t.dictRecord.kind, id: t.dictRecord.id, version: t.dictRecord.version, data: t.dictRecord.data }).from(t.dictRecord).where(and(eq(t.dictRecord.workspaceId, workspaceId), inArray(t.dictRecord.id, ids))) : [];
+        const maxV = new Map<string, number>();
+        // (5) the next semantic version starts from the highest one ever written for that id, not the current member,
+        // so a change after a revert can never reuse a label
+        const maxSem = new Map<string, string>();
+        const semGt = (a: string, b: string) => { const x = parseSemver(a), y = parseSemver(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };
+        for (const r of allRows) {
+          const k = `${r.kind}|${r.id}`;
+          maxV.set(k, Math.max(maxV.get(k) ?? 0, r.version));
+          const sv = semverOf(r as any);
+          if (!maxSem.has(k) || semGt(sv, maxSem.get(k)!) > 0) maxSem.set(k, sv);
+        }
+        const curRecs = await loadRecords(tx, workspaceId, items.map((i) => members.get(`${i.entity}|${i.id}`)).filter((m): m is Member => !!m));
+        const curOf = (kind: string, id: string) => curRecs.find((r) => r.kind === kind && r.id === id) ?? null;
+        const classified = new Map<string, { types: ChangeType[]; bump: Bump; from: string; to: string; reasons: string[] }>();
         const releaseId = newId('rel');
         const writes: { kind: RecordKind; id: string; version: number; data: any; hash: string }[] = [];
-        const codeCount = [...members.values()].filter((m) => m.kind === 'C').length;
+        const codeRows = (await tx.execute(sql`select coalesce(max(nullif(regexp_replace(data ->> 'display_code', '[^0-9]', '', 'g'), '')::int), 0) as n from dict_record where workspace_id = ${workspaceId} and kind = 'C'`)) as unknown as { n: number }[];
+        const codeCount = Number(codeRows[0]?.n ?? 0);
         let newCodes = 0;
         for (const it of items) {
           const key = `${it.entity}|${it.id}`;
@@ -121,10 +148,18 @@ export async function commitCandidate(db: Db, workspaceId: string, candidateId: 
           }
           if (it.action === 'UPDATE' && (!cur || cur.version !== it.base_version)) throw new AppError('BASE_CHANGED', `${it.entity} ${it.id} đã đổi phiên bản so với nền của hồ sơ.`, 409, undefined, ['NEW_RUN']);
           if (it.action === 'ADD' && cur) throw new AppError('BASE_CHANGED', `${it.entity} ${it.id} đã tồn tại trong từ điển.`, 409, undefined, ['NEW_RUN']);
-          const version = (cur?.version ?? 0) + 1;
+          const version = Math.max(cur?.version ?? 0, maxV.get(key) ?? 0) + 1;
           let data = it.data;
           if (it.entity === 'C' && it.action === 'ADD') data = { ...data, display_code: 'C' + String(codeCount + ++newCodes).padStart(2, '0') } satisfies CData;
-          if (it.entity === 'R') data = { ...data, version_label: `1.${version - 1}` } satisfies RData;
+          // (38): classify the change and bump the record's own semantic version
+          const prev = cur ? curOf(it.entity, it.id) : null;
+          const cl = classify(it.entity, prev?.data ?? null, data);
+          const from = prev ? semverOf(prev) : '0.0.0';
+          const top = maxSem.get(key) ?? from;
+          const to = prev ? fmt(bump(parseSemver(top), cl.bump === 'NONE' ? 'PATCH' : cl.bump)) : maxSem.has(key) ? fmt(bump(parseSemver(maxSem.get(key)!), 'MAJOR')) : '1.0.0';
+          classified.set(key, { types: cl.types, bump: prev ? (cl.bump === 'NONE' ? 'PATCH' : cl.bump) : 'NONE', from, to, reasons: cl.reasons });
+          data = { ...data, semver: to };
+          if (it.entity === 'R') data = { ...data, version_label: to } satisfies RData;
           writes.push({ kind: it.entity, id: it.id, version, data, hash: hashJson(data) });
           members.set(key, { kind: it.entity, id: it.id, version });
         }
@@ -133,9 +168,12 @@ export async function commitCandidate(db: Db, workspaceId: string, candidateId: 
           const m = members.get(`${k}|${id}`);
           return !!m && (v === undefined || m.version === v);
         };
+        const keptBase = keptAtBaseIds(cand.items as CandidateItem[], decision.dropped_item_ids);
         for (const w of writes) {
           if (w.kind === 'R')
             for (const q of (w.data as RData).requirements) {
+              // a competency kept at its base version keeps the base's indicators, not the dropped new ones
+              if (keptBase.has(q.competency_id)) q.indicators = q.indicators.filter((ir) => has('I', ir.indicator_id));
               if (!has('C', q.competency_id)) throw new AppError('REFERENCE_MISSING', `Khung ${w.id} trỏ tới năng lực ${q.competency_id} không có trong release.`, 409);
               q.competency_version = members.get(`C|${q.competency_id}`)!.version;
               for (const ir of q.indicators) {
@@ -147,18 +185,62 @@ export async function commitCandidate(db: Db, workspaceId: string, candidateId: 
           if (w.kind === 'I' && !has('C', w.data.competency_id)) throw new AppError('REFERENCE_MISSING', `Chỉ báo ${w.id} trỏ tới năng lực không có trong release.`, 409);
           if (w.kind === 'R' || w.kind === 'I') w.hash = hashJson(w.data);
         }
-        const changes: ChangeItem[] = items
-          .filter((i) => i.entity !== 'V')
-          .map((i) => ({ entity: i.entity, id: i.id, name: i.name, action: i.action, before: i.before, after: i.after, reason: i.reason, affected: i.affected }));
+        // P3.7: a competency that no framework of the new release uses leaves use (Deprecated); nothing is deleted
+        const rMembers = [...members.values()].filter((m) => m.kind === 'R');
+        const rRecs = await loadRecords(tx, workspaceId, rMembers.filter((m) => !writes.some((w) => w.kind === 'R' && w.id === m.id)));
+        const rDatas = [...rRecs.map((r) => r.data as RData), ...writes.filter((w) => w.kind === 'R').map((w) => w.data as RData)];
+        const used = new Set(rDatas.flatMap((r) => r.requirements.map((q) => q.competency_id)));
+        const cMembers = [...members.values()].filter((m) => m.kind === 'C' && !used.has(m.id));
+        const reactivations: { id: string; name: string; from: string; to: string }[] = [];
+        if (rDatas.length) {
+          const usedRecs = await loadRecords(tx, workspaceId, [...members.values()].filter((m) => m.kind === 'C' && used.has(m.id) && !writes.some((w) => w.kind === 'C' && w.id === m.id)));
+          for (const c of usedRecs) {
+            if ((c.data as CData).status !== 'DEPRECATED') continue;
+            const all = ((await tx.execute(sql`select max(version)::int as v from dict_record where workspace_id = ${workspaceId} and kind = 'C' and id = ${c.id}`)) as unknown as { v: number }[])[0]?.v ?? c.version;
+            const from = semverOf(c);
+            const to = fmt(bump(parseSemver(from), 'MINOR'));
+            const data = { ...(c.data as CData), status: 'ACTIVE', semver: to };
+            writes.push({ kind: 'C', id: c.id, version: all + 1, data, hash: hashJson(data) });
+            members.set(`C|${c.id}`, { kind: 'C', id: c.id, version: all + 1 });
+            reactivations.push({ id: c.id, name: (c.data as CData).label, from, to });
+          }
+        }
+        const deprecations: { id: string; name: string; from: string; to: string }[] = [];
+        if (rDatas.length) {
+          const cRecs = await loadRecords(tx, workspaceId, cMembers.filter((m) => !writes.some((w) => w.kind === 'C' && w.id === m.id)));
+          for (const c of cRecs) {
+            if ((c.data as CData).status === 'DEPRECATED') continue;
+            const all = ((await tx.execute(sql`select max(version)::int as v from dict_record where workspace_id = ${workspaceId} and kind = 'C' and id = ${c.id}`)) as unknown as { v: number }[])[0]?.v ?? c.version;
+            const from = semverOf(c);
+            const to = fmt(bump(parseSemver(from), 'MINOR'));
+            const data = { ...(c.data as CData), status: 'DEPRECATED', semver: to };
+            writes.push({ kind: 'C', id: c.id, version: all + 1, data, hash: hashJson(data) });
+            members.set(`C|${c.id}`, { kind: 'C', id: c.id, version: all + 1 });
+            deprecations.push({ id: c.id, name: (c.data as CData).label, from, to });
+          }
+        }
+        const changes: ChangeItem[] = [
+          ...items
+            .filter((i) => i.entity !== 'V')
+            .map((i) => {
+              const c = classified.get(`${i.entity}|${i.id}`);
+              return { entity: i.entity, id: i.id, name: i.name, action: i.action, before: i.before, after: i.after, reason: c?.reasons.length && i.action === 'UPDATE' ? `${i.reason} Loại thay đổi: ${c.types.join(', ')} (${c.reasons.join('; ')}).` : i.reason, affected: i.affected, ...(c ? { change_types: c.types, bump: c.bump, from_version: c.from, to_version: c.to } : {}) } as ChangeItem;
+            }),
+          ...reactivations.map((d) => ({ entity: 'C' as RecordKind, id: d.id, name: d.name, action: 'UPDATE' as any, before: 'DEPRECATED', after: 'ACTIVE', reason: 'Một khung của bản mới dùng lại năng lực đã ngừng dùng: chuyển lại Hiệu lực.', affected: [], change_types: ['P'], bump: 'MINOR', from_version: d.from, to_version: d.to }) as ChangeItem),
+          ...deprecations.map((d) => ({ entity: 'C' as RecordKind, id: d.id, name: d.name, action: 'DEPRECATE' as any, before: 'ACTIVE', after: 'DEPRECATED', reason: 'Không còn khung nào dùng năng lực này: chuyển Ngừng dùng, không xóa.', affected: [], change_types: ['P'], bump: 'MINOR', from_version: d.from, to_version: d.to }) as ChangeItem),
+        ];
+        // (39): the dictionary's own version from the kinds of change it contains
+        const versionLabel = nextDictionaryLabel(latest?.versionLabel ?? null, changes.map((c: any) => ({ kind: c.entity, action: c.action, bump: (c.bump ?? 'NONE') as Bump })));
+        const notes = releaseNotes(versionLabel, changes.map((c: any) => ({ kind: c.entity, name: c.name, action: c.action, types: c.change_types, from: c.from_version, to: c.to_version, affected: c.affected })));
         const counts = { ADD: changes.filter((c) => c.action === 'ADD').length, UPDATE: changes.filter((c) => c.action === 'UPDATE').length, REUSE: changes.filter((c) => c.action === 'REUSE').length };
         const gId = `G-${String(seq).padStart(4, '0')}`;
-        const gData: GData = { release_seq: seq, version_label: versionLabel, run_id: cand.runId, policy: 'jd-only-draft@1', decided_by: decision.decided_by, changes, note: decision.reason };
+        const gData: GData = { release_seq: seq, version_label: versionLabel, run_id: cand.runId, policy: 'jd-only-draft@1', decided_by: decision.decided_by, changes, note: `${notes} Lý do duyệt: ${decision.reason}` };
         writes.push({ kind: 'G', id: gId, version: 1, data: gData, hash: hashJson(gData) });
         members.set(`G|${gId}`, { kind: 'G', id: gId, version: 1 });
 
         if (writes.length) await tx.insert(t.dictRecord).values(writes.map((w) => ({ workspaceId, kind: w.kind, id: w.id, version: w.version, data: w.data, contentSha256: w.hash, releaseId })));
         const memberList = [...members.values()].sort((a, b) => (a.kind + a.id).localeCompare(b.kind + b.id));
-        const diff = { counts, changes, dropped: decision.dropped_item_ids, written: writes.map((w) => ({ kind: w.kind, id: w.id, version: w.version, sha256: w.hash })) };
+        const diff = { counts, changes, notes, dropped: decision.dropped_item_ids, written: writes.map((w) => ({ kind: w.kind, id: w.id, version: w.version, sha256: w.hash })) };
         const receiptHash = hashJson({ members: memberList, written: diff.written, parent: latestId, seq });
         const decidedAt = new Date().toISOString();
         await tx.insert(t.release).values({ releaseId, workspaceId, seq, parentReleaseId: latestId, versionLabel, runId: cand.runId, candidateId, decidedBy: decision.decided_by, decidedAt, diff, members: memberList, receiptHash, origin: 'B8' });
@@ -218,15 +300,16 @@ export async function revertRelease(db: Db, workspaceId: string, input: { releas
     const [parent] = target.parentReleaseId ? await tx.select().from(t.release).where(eq(t.release.releaseId, target.parentReleaseId)) : [];
     const seq = latest.seq + 1;
     const releaseId = newId('rel');
-    const versionLabel = versionLabelFor(seq);
+    // P3.8: a revert is a new release with the PATCH raised (1.3.0 back to the content before it → 1.3.1)
+    const versionLabel = fmt(bump(parseSemver(latest.versionLabel), 'PATCH'));
     const gId = `G-${String(seq).padStart(4, '0')}`;
-    const gData: GData = { release_seq: seq, version_label: versionLabel, run_id: null, policy: 'revert', decided_by: input.actor, changes: [], note: `Khôi phục về trước ${target.versionLabel}: ${input.reason.trim()}` };
+    const gData: GData = { release_seq: seq, version_label: versionLabel, run_id: null, policy: 'revert', decided_by: input.actor, changes: [], note: `Bản ${versionLabel}: khôi phục nội dung trước ${target.versionLabel}. Lý do: ${input.reason.trim()}` };
     const keepG = (latest.members as Member[]).filter((m) => m.kind === 'G');
     const members = [...((parent?.members as Member[] | undefined) ?? []).filter((m) => m.kind !== 'G'), ...keepG, { kind: 'G' as const, id: gId, version: 1 }].sort((a, b) => (a.kind + a.id).localeCompare(b.kind + b.id));
     const gHash = hashJson(gData);
     await tx.insert(t.dictRecord).values({ workspaceId, kind: 'G', id: gId, version: 1, data: gData, contentSha256: gHash, releaseId });
     const counts = { ADD: 0, UPDATE: 0, REUSE: 0 };
-    const diff = { counts, changes: [], dropped: [], written: [{ kind: 'G', id: gId, version: 1, sha256: gHash }] };
+    const diff = { counts, changes: [], notes: gData.note, dropped: [], written: [{ kind: 'G', id: gId, version: 1, sha256: gHash }] };
     const receiptHash = hashJson({ members, written: diff.written, parent: latest.releaseId, seq });
     const decidedAt = new Date().toISOString();
     await tx.insert(t.release).values({ releaseId, workspaceId, seq, parentReleaseId: latest.releaseId, versionLabel, runId: null, candidateId: null, decidedBy: input.actor, decidedAt, diff, members, receiptHash, reverts: target.releaseId, origin: 'REVERT' });

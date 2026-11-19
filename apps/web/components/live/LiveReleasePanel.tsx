@@ -81,7 +81,7 @@ export default function LiveReleasePanel() {
                   <td>{i.action === 'NEEDS_REVIEW' ? <span className="dim">không</span> : canDrop ? <input type="checkbox" aria-label={`Công bố ${i.name}`} checked={!dropped.includes(i.item_id)} onChange={(e) => setDropped((d) => (e.target.checked ? d.filter((x) => x !== i.item_id) : [...d, i.item_id]))} /> : dropped.includes(i.item_id) ? <span className="dim">đã bỏ</span> : '✓'}</td>
                   <td>{ENTITY[i.entity] ?? i.entity}</td>
                   <td>{i.name}</td>
-                  <td><span className={'pill ' + i.action.toLowerCase()}>{i.action === 'NEEDS_REVIEW' ? 'CẦN XEM LẠI' : i.action}</span></td>
+                  <td><span className={'pill ' + i.action.toLowerCase()}>{i.action === 'NEEDS_REVIEW' ? 'CẦN XEM LẠI' : i.action}</span>{(i as any).to_version ? <div className="dim" data-testid="item-version">{(i as any).from_version ? `${(i as any).from_version} → ` : ''}{(i as any).to_version}{(i as any).change_types?.length ? ` · loại ${(i as any).change_types.join(', ')} (${(i as any).bump})` : ''}</div> : null}</td>
                   <td>{i.before ? <><span className="dim">{i.before}</span> → </> : null}{i.after}</td>
                   <td>{i.reason}{i.affected.length ? <div className="cl-warn">Ảnh hưởng: {i.affected.join('; ')}</div> : null}</td>
                 </tr>

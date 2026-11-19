@@ -38,10 +38,10 @@ test('A08 · Export backup → nhập thử → phục hồi vào môi trường
   const report = page.getByTestId('import-report');
   await expect(report).toHaveAttribute('data-ok', 'true');
   await expect(report).toContainText('Có thể áp dụng');
-  await expect(report).toContainText('v1.0');
+  await expect(report).toContainText('v1.0.0');
   expect(await (await request.get('/api/releases')).json()).toEqual([]); // preview wrote nothing
   await page.locator('#imp-commit').click();
-  await expect(page.getByTestId('transfer-note')).toContainText('v1.0');
+  await expect(page.getByTestId('transfer-note')).toContainText('v1.0.0');
 
   const releasesAfter = await (await request.get('/api/releases')).json();
   expect(releasesAfter).toEqual(releasesBefore);
@@ -73,6 +73,6 @@ test('A08 · Export backup → nhập thử → phục hồi vào môi trường
   expect(b3.raw.counts).toMatchObject({ REUSE: 2, ADD: 0 });
   // framework export of the restored version
   const fw = await (await request.get(`/api/exports/framework?session=${src}&version=1.0`)).json();
-  expect(fw.framework.version_label).toBe('1.0');
+  expect(fw.framework.version_label).toBe('1.0.0'); // asked as version=1.0: alias
   expect(fw.competencies).toHaveLength(3);
 });

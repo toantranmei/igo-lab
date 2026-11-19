@@ -90,6 +90,28 @@ export default function AuditScreen() {
   const hasPending = lessons.some((l) => l.status === 'PENDING');
   const canApprove = !!source.approveLessons && hasPending && !busy;
 
+  const decide = async (kind: 'SAFE' | 'REJECTED') => {
+    const fn = kind === 'SAFE' ? source.approveLessons : source.rejectLessons;
+    if (!fn) return;
+    const r = reason.trim();
+    if (!r) {
+      setReasonError(`Cần nhập lý do trước khi ${kind === 'SAFE' ? 'xác nhận An toàn' : 'loại lesson'}.`);
+      document.getElementById('safe-reason')?.focus();
+      return;
+    }
+    setReasonError('');
+    setBusy(true);
+    try {
+      await fn.call(source, r);
+      setReason('');
+      toast(kind === 'SAFE' ? 'Đã ghi quyết định An toàn cho các lesson đang chờ.' : 'Đã loại các lesson đang chờ; chúng không được nạp vào lượt sau.');
+      await refresh();
+    } catch (e) {
+      setReasonError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const approve = async () => {
     if (!source.approveLessons) return;
     const r = reason.trim();
@@ -349,7 +371,7 @@ export default function AuditScreen() {
 
       {source.approveLessons && (
         <label className="au-reason" htmlFor="safe-reason">
-          Lý do xác nhận An toàn (bắt buộc)
+          Lý do quyết định lesson (bắt buộc)
           <input
             id="safe-reason"
             type="text"
@@ -374,6 +396,11 @@ export default function AuditScreen() {
         <button type="button" id="safe" disabled={!canApprove} onClick={approve}>
           Xác nhận lesson An toàn{isExample ? ' (giả lập người duyệt)' : ''}
         </button>
+        {source.rejectLessons && (
+          <button type="button" id="reject" disabled={!canApprove} onClick={() => void decide('REJECTED')} title="Phát hiện do lỗi hệ thống hoặc không phải bài học: không nạp vào lượt sau">
+            Loại lesson
+          </button>
+        )}
         {source.startNextRun && (
           <button type="button" id="round2" className="primary" disabled={!state.canStartNextRun || busy} onClick={nextRun}>
             {nextLabel}

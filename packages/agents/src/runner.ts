@@ -9,12 +9,19 @@ export interface CliRequest {
   schema: Record<string, unknown>;
   model: string;
   effort: string;
+  /** Aborted when the block stops: calls still waiting for a slot return CANCELLED without spawning. */
+  signal?: AbortSignal;
 }
+export type CliErrorCode = 'CLI_NOT_FOUND' | 'CLI_ERROR' | 'TIMEOUT' | 'NO_STRUCTURED_OUTPUT' | 'NOT_LOGGED_IN' | 'QUOTA' | 'CANCELLED';
 export interface CliResponse {
   ok: boolean;
   structured: unknown;
-  errorCode?: 'CLI_NOT_FOUND' | 'CLI_ERROR' | 'TIMEOUT' | 'NO_STRUCTURED_OUTPUT' | 'NOT_LOGGED_IN';
+  errorCode?: CliErrorCode;
   errorMessage?: string;
+  /** true when the breaker refused the call: no `claude` process was spawned. */
+  blocked?: boolean;
+  /** For QUOTA / breaker refusals: when the limit resets (ISO). */
+  until?: string | null;
   durationMs: number;
   usage?: unknown;
   costUsd?: number;
@@ -28,6 +35,86 @@ export interface AgentStatus {
 }
 
 export const MIN_CLI_VERSION = '2.1.0';
+
+/* ---------------------------------------------------------------- usage-limit circuit breaker */
+
+export const QUOTA_PATTERN = /hit your .*limit|usage limit/i;
+
+/** Offset (ms) of a time zone at a given instant: local wall clock − UTC. */
+function tzOffsetMs(timeZone: string, at: Date): number {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(at).map((p) => [p.type, p.value]));
+  const wall = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour % 24, +parts.minute, +parts.second);
+  return wall - Math.floor(at.getTime() / 1000) * 1000;
+}
+
+/**
+ * Reads the reset time out of a usage-limit message, e.g. "resets 2:30am (Asia/Saigon)" or "resets 11pm".
+ * Returns the next instant (after `now`) with that wall-clock time in that zone, or null when there is none.
+ */
+export function parseQuotaReset(text: string, now = new Date()): string | null {
+  const m = text.match(/resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:\(([^)]+)\))?/i);
+  if (!m) return null;
+  let h = Number(m[1]);
+  const min = Number(m[2] ?? 0);
+  const ap = m[3]?.toLowerCase();
+  if (ap === 'pm' && h < 12) h += 12;
+  if (ap === 'am' && h === 12) h = 0;
+  if (h > 23 || min > 59) return null;
+  let zone = m[4]?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+  } catch {
+    zone = 'UTC';
+  }
+  const off = tzOffsetMs(zone, now);
+  const local = new Date(now.getTime() + off); // wall clock in that zone, expressed as UTC fields
+  let target = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), h, min) - off;
+  if (target <= now.getTime()) target += 24 * 3600 * 1000;
+  // re-anchor in case a DST change lies between now and the target
+  target -= tzOffsetMs(zone, new Date(target)) - off;
+  return new Date(target).toISOString();
+}
+
+export type BreakerCode = 'QUOTA' | 'NOT_LOGGED_IN' | 'AI_ERROR';
+export interface BreakerState {
+  code: BreakerCode;
+  message: string;
+  /** Reopens by itself at this time (ISO). */
+  until: string;
+  tripped_at: string;
+}
+/** Without a readable reset time the breaker stays open this long, then lets one call probe. */
+const FALLBACK_HOLD_MS: Record<BreakerCode, number> = { QUOTA: 60 * 60 * 1000, NOT_LOGGED_IN: 2 * 60 * 1000, AI_ERROR: 2 * 60 * 1000 };
+export const AI_ERROR_STREAK = 3;
+
+/** One breaker per process: every runner instance in the worker shares it, so one usage-limit error stops all queued calls. */
+const breaker = { state: null as BreakerState | null, cliErrorStreak: 0, listeners: new Set<(s: BreakerState) => void>() };
+
+export function getBreaker(now = Date.now()): BreakerState | null {
+  if (breaker.state && new Date(breaker.state.until).getTime() <= now) breaker.state = null;
+  return breaker.state;
+}
+export function tripBreaker(code: BreakerCode, message: string, until?: string | null, now = Date.now()): BreakerState {
+  const s: BreakerState = { code, message: message.slice(0, 300), until: until ?? new Date(now + FALLBACK_HOLD_MS[code]).toISOString(), tripped_at: new Date(now).toISOString() };
+  breaker.state = s;
+  breaker.cliErrorStreak = 0;
+  for (const l of breaker.listeners) l(s);
+  return s;
+}
+/** Restores a breaker persisted by an earlier worker process (ignored when already expired). */
+export function restoreBreaker(s: BreakerState | null | undefined) {
+  if (s && new Date(s.until).getTime() > Date.now()) breaker.state = s;
+}
+export function resetBreaker() {
+  breaker.state = null;
+  breaker.cliErrorStreak = 0;
+}
+/** Called whenever the breaker trips (the worker persists it so the web can refuse new runs). */
+export function onBreakerTrip(fn: (s: BreakerState) => void): () => void {
+  breaker.listeners.add(fn);
+  return () => breaker.listeners.delete(fn);
+}
+const blockedResponse = (s: BreakerState): CliResponse => ({ ok: false, structured: null, errorCode: s.code === 'NOT_LOGGED_IN' ? 'NOT_LOGGED_IN' : s.code === 'QUOTA' ? 'QUOTA' : 'CLI_ERROR', errorMessage: `Cầu dao đang ngắt (${s.code}) tới ${s.until}: ${s.message}`, durationMs: 0, blocked: true, until: s.until });
 
 class Semaphore {
   private queue: (() => void)[] = [];
@@ -116,8 +203,23 @@ export class ClaudeCliRunner {
   }
 
   async run(req: CliRequest): Promise<CliResponse> {
-    return this.sem.run(async () => {
+    const cancelled = (): CliResponse => ({ ok: false, structured: null, errorCode: 'CANCELLED', errorMessage: 'Bước đã dừng; lời gọi đang chờ bị hủy.', durationMs: 0, blocked: true });
+    if (req.signal?.aborted) return cancelled();
+    const before = getBreaker();
+    if (before) return blockedResponse(before);
+    const res = await this.sem.run(async (): Promise<CliResponse> => {
+      // checked again after the wait: the block may have stopped, or the breaker tripped, while this call sat in the queue
+      if (req.signal?.aborted) return cancelled();
+      const queued = getBreaker();
+      if (queued) return blockedResponse(queued);
       const cwd = await mkdtemp(path.join(os.tmpdir(), 'cl-agent-'));
+      // last check right before spawning: the breaker or the block may have stopped during mkdtemp
+      const late = getBreaker();
+      if (req.signal?.aborted || late) {
+        await rm(cwd, { recursive: true, force: true }).catch(() => {});
+        return req.signal?.aborted ? cancelled() : blockedResponse(late!);
+      }
+      const spawnedAt = Date.now();
       const started = Date.now();
       try {
         const args = [
@@ -134,27 +236,48 @@ export class ClaudeCliRunner {
           '--no-session-persistence',
         ];
         const r = await this.exec(args, req.user, this.timeoutMs, cwd);
-        const durationMs = Date.now() - started;
-        if (r.spawnError) return { ok: false, structured: null, errorCode: 'CLI_NOT_FOUND', errorMessage: r.spawnError.message, durationMs };
-        if (r.timedOut) return { ok: false, structured: null, errorCode: 'TIMEOUT', errorMessage: `Quá ${this.timeoutMs} ms`, durationMs };
-        let parsed: any = null;
-        try {
-          parsed = JSON.parse(r.stdout);
-        } catch {
-          /* not JSON */
-        }
-        if (!parsed || r.code !== 0 || parsed.is_error) {
-          const text = String(parsed?.result ?? r.stderr ?? r.stdout ?? '').slice(0, 500);
-          const notLoggedIn = /log ?in|not authenticated|credential|oauth|401/i.test(text);
-          return { ok: false, structured: null, errorCode: notLoggedIn ? 'NOT_LOGGED_IN' : 'CLI_ERROR', errorMessage: text || `claude thoát với mã ${r.code}`, durationMs, usage: parsed?.usage, costUsd: parsed?.total_cost_usd };
-        }
-        const model = parsed.modelUsage ? Object.keys(parsed.modelUsage)[0] : undefined;
-        if (parsed.structured_output === undefined || parsed.structured_output === null)
-          return { ok: false, structured: null, errorCode: 'NO_STRUCTURED_OUTPUT', errorMessage: 'CLI không trả structured_output', durationMs, usage: parsed.usage, costUsd: parsed.total_cost_usd, model };
-        return { ok: true, structured: parsed.structured_output, durationMs: parsed.duration_ms ?? durationMs, usage: parsed.usage, costUsd: parsed.total_cost_usd, model };
+        const out = ((): CliResponse => {
+          const durationMs = Date.now() - started;
+          if (r.spawnError) return { ok: false, structured: null, errorCode: 'CLI_NOT_FOUND', errorMessage: r.spawnError.message, durationMs };
+          if (r.timedOut) return { ok: false, structured: null, errorCode: 'TIMEOUT', errorMessage: `Quá ${this.timeoutMs} ms`, durationMs };
+          let parsed: any = null;
+          try {
+            parsed = JSON.parse(r.stdout);
+          } catch {
+            /* not JSON */
+          }
+          if (!parsed || r.code !== 0 || parsed.is_error) {
+            const text = String(parsed?.result || r.stderr || r.stdout || '').slice(0, 500);
+            if (QUOTA_PATTERN.test(text)) return { ok: false, structured: null, errorCode: 'QUOTA', errorMessage: text, durationMs, usage: parsed?.usage, costUsd: parsed?.total_cost_usd, until: parseQuotaReset(text) };
+            const notLoggedIn = /log ?in|not authenticated|credential|oauth|401/i.test(text);
+            return { ok: false, structured: null, errorCode: notLoggedIn ? 'NOT_LOGGED_IN' : 'CLI_ERROR', errorMessage: text || `claude thoát với mã ${r.code}`, durationMs, usage: parsed?.usage, costUsd: parsed?.total_cost_usd };
+          }
+          const model = parsed.modelUsage ? Object.keys(parsed.modelUsage)[0] : undefined;
+          if (parsed.structured_output === undefined || parsed.structured_output === null)
+            return { ok: false, structured: null, errorCode: 'NO_STRUCTURED_OUTPUT', errorMessage: 'CLI không trả structured_output', durationMs, usage: parsed.usage, costUsd: parsed.total_cost_usd, model };
+          return { ok: true, structured: parsed.structured_output, durationMs: parsed.duration_ms ?? durationMs, usage: parsed.usage, costUsd: parsed.total_cost_usd, model };
+        })();
+        this.judge(out, spawnedAt);
+        return out;
       } finally {
         await rm(cwd, { recursive: true, force: true }).catch(() => {});
       }
     });
+    return res;
+  }
+
+  /**
+   * Trips the breaker from a finished call. Runs INSIDE the semaphore slot, before it is released, so the next queued
+   * call already sees the breaker open. Results of calls spawned before the last trip do not count towards a new streak.
+   */
+  private judge(res: CliResponse, spawnedAt: number) {
+    if (res.blocked) return;
+    const st = breaker.state;
+    if (st && Date.parse(st.tripped_at) > spawnedAt) return;
+    if (res.errorCode === 'QUOTA') tripBreaker('QUOTA', res.errorMessage ?? 'Hết hạn mức', res.until);
+    else if (res.errorCode === 'NOT_LOGGED_IN') tripBreaker('NOT_LOGGED_IN', res.errorMessage ?? 'Chưa đăng nhập');
+    else if (res.errorCode === 'CLI_ERROR') {
+      if (++breaker.cliErrorStreak >= AI_ERROR_STREAK) tripBreaker('AI_ERROR', `${AI_ERROR_STREAK} lỗi CLI liên tiếp. Lỗi cuối: ${res.errorMessage ?? ''}`);
+    } else if (res.ok) breaker.cliErrorStreak = 0;
   }
 }

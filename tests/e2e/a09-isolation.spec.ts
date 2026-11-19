@@ -8,7 +8,7 @@ test('A09 · Phiên mẫu không đi vào từ điển Live; export không chứ
   await resetDatabase();
   const serverCalls: string[] = [];
   page.on('request', (r) => { if (r.method() !== 'GET' && r.url().includes('/api/')) serverCalls.push(`${r.method()} ${r.url()}`); });
-  await page.goto('/s/example/line');
+  await page.goto('/demo/line');
   for (let i = 0; i < 9; i++) await runBlock(page);
   expect(serverCalls).toEqual([]); // the example never writes to the server
   expect(await (await request.get('/api/releases')).json()).toEqual([]);

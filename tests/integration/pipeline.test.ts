@@ -50,11 +50,14 @@ describe('dây chuyền Live với CLI giả', () => {
     const b4 = await getDetail(db, WS, sessionId, 'B4');
     expect(b4.gates[0]).toMatchObject({ status: 'NOT_APPLICABLE' });
     expect(b4.gates[0].reason).toBeTruthy();
-    expect((b4.raw as any).hypotheses).toHaveLength(3);
-    expect(s.inputs.events.every((e) => e.evidenceClass === 'HYPOTHESIS')).toBe(true);
+    // P1 drops the hypothesis agent (T13): code lists the groups that still need real evidence
+    expect((b4.raw as any).hypotheses).toHaveLength(0);
+    expect((b4.raw as any).evidence_needed).toHaveLength(3);
     const b5 = (await getDetail(db, WS, sessionId, 'B5')).raw as any;
     expect(b5.coverage).toBe(1);
-    expect(Object.values(b5.levels).every((l) => l === null)).toBe(true);
+    // E10: three seats always score; the level is the median of their votes (26)
+    expect(Object.values(b5.levels).every((l) => l === 3)).toBe(true);
+    expect(b5.scores.every((x: any) => x.rwg === 1 && x.keep)).toBe(true);
     // every stored trace satisfies the shared contract and is ordered RECEIVE → READ → GATE → HANDOFF
     for (const b of ['B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8'] as const) {
       const tr = BlockTraceSchema.parse(await getTrace(db, WS, sessionId, b));
@@ -66,8 +69,9 @@ describe('dây chuyền Live với CLI giả', () => {
       expect([...kinds].sort((x, y) => order[x] - order[y])).toEqual(kinds);
     }
     const b1t = (await getTrace(db, WS, sessionId, 'B1'))!;
-    expect(b1t.events[2].substitution).toContain('1 + 1 = 2');
-    expect(b1t.events[1].source).toMatchObject({ task_id: 'T1.jd_scope', model: 'haiku', effort: 'low' });
+    const reads = b1t.events.filter((e) => e.title.startsWith('Đọc JD'));
+    expect(reads[1].substitution).toContain('1 + 1 = 2');
+    expect(reads[0].source).toMatchObject({ task_id: 'E1.jd_read', model: 'haiku', effort: 'low' });
     // nothing is published before the decision
     expect(await latestRelease(db, WS)).toBeNull();
     const cand = (await getCandidate(db, WS, sessionId))!;
@@ -75,18 +79,21 @@ describe('dây chuyền Live với CLI giả', () => {
     await expect(commitCandidate(db, WS, cand.id, { expected_base_release_id: null, actor: 'local' })).rejects.toMatchObject({ code: 'DECISION_REQUIRED' });
     await expect(decideCandidate(db, WS, cand.id, { decision: 'ACCEPT', reason: ' ', actor: 'local' })).rejects.toMatchObject({ code: 'REASON_REQUIRED' });
     const receipt = await publish(sessionId);
-    expect(receipt.version_label).toBe('1.0');
+    expect(receipt.version_label).toBe('1.0.0');
     expect(receipt.counts.ADD).toBeGreaterThanOrEqual(3);
     const again = await commitCandidate(db, WS, cand.id, { expected_base_release_id: null, actor: 'local' });
     expect(again).toMatchObject({ release_id: receipt.release_id, replayed: true });
     const d = await loadDictionary(db, WS, receipt.release_id);
     expect(d.C.map((c) => c.data.display_code)).toEqual(['C01', 'C02', 'C03']);
     expect(d.R[0].data.requirements).toHaveLength(3);
-    expect(d.R[0].data.requirements.every((q) => q.required_level === null && q.competency_version === 1 && q.indicators.length === 1 && q.evidence_ids.length > 0)).toBe(true);
+    expect(d.R[0].data.requirements.every((q) => q.required_level === 3 && q.competency_version === 1 && q.indicators.length === 6 && q.evidence_ids.length > 0)).toBe(true);
     expect(d.V.every((v) => v.data.evidence_class === 'JD')).toBe(true);
+    // (34)–(36): level C, deviation tickets → Internal tier; software → 12-month review
+    expect(d.R[0].data).toMatchObject({ tier: 'INTERNAL' });
+    expect(d.R[0].data.review_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     const after = await getState(db, WS, sessionId);
     expect(after.completed).toBe(true);
-    expect(after.dictionary.version).toBe('1.0');
+    expect(after.dictionary.version).toBe('1.0.0');
     expect(after.history).toHaveLength(1);
     expect(after.history[0].receipt?.release_id).toBe(receipt.release_id);
     expect((await verifyEventChain(db, WS)).ok).toBe(true);
@@ -98,7 +105,9 @@ describe('dây chuyền Live với CLI giả', () => {
     const a = await newSession(db, [doc('A', JD_A), doc('B', JD_B)], 'P1');
     await runThrough(db, a.sessionId, 'B7');
     const first = calls().length;
-    expect(first).toBeGreaterThan(10);
+    // P1 batches: one E1 read for both JDs, one review per step, one matrix… instead of one call per JD and per task
+    expect(first).toBeGreaterThanOrEqual(5);
+    expect(first).toBeLessThanOrEqual(16); // + E9 re-coding, three E10 seats
     const b = await newSession(db, [doc('A', JD_A), doc('B', JD_B)], 'P2');
     await runThrough(db, b.sessionId, 'B7');
     expect(calls().length - first).toBe(0);
@@ -109,9 +118,9 @@ describe('dây chuyền Live với CLI giả', () => {
     const cached = await db.select().from(t.agentCall).where(and(eq(t.agentCall.runId, b.runId), eq(t.agentCall.cacheHit, false)));
     expect(cached).toHaveLength(0);
     // an explicit "run the agent again" bypasses the stored answer for that task only
-    await step(db, b.sessionId, 'B2', runner(), { rerun_tasks: ['T3'] });
+    await step(db, b.sessionId, 'B2', runner(), { rerun_tasks: ['E23'] });
     expect(calls().length - first).toBe(1);
-    expect(calls().at(-1).taskId).toBe('T3.task_merge');
+    expect(calls().at(-1).taskId).toBe('E23.task_review');
     expect((await getState(db, WS, b.sessionId)).cards.find((c) => c.id === 'B3')!.state).toBe('stale');
   });
 
@@ -131,20 +140,32 @@ describe('dây chuyền Live với CLI giả', () => {
     const cItems = (cand.items as any[]).filter((i) => i.entity === 'C');
     expect(cItems.map((i) => i.action).sort()).toEqual(['ADD', 'REUSE', 'REUSE', 'REUSE']);
     const r2 = await publish(one.sessionId);
-    expect(r2.version_label).toBe('1.1');
+    expect(r2.version_label).toBe('1.1.0'); // (39): a new competency raises MINOR
     const d2 = await loadDictionary(db, WS, r2.release_id);
     expect(d2.C).toHaveLength(4);
-    expect(d2.RAll.map((f) => f.data.version_label)).toEqual(['1.0', '1.1']);
+    // (38): the framework's competency set changed (S) → MAJOR
+    expect(d2.RAll.map((f) => f.data.version_label)).toEqual(['1.0.0', '2.0.0']);
     expect(d2.RAll[0].data.requirements).toHaveLength(3);
     expect(d2.RAll[1].data.requirements).toHaveLength(4);
     const st = await getState(db, WS, one.sessionId);
-    expect(st.history.map((h) => `${h.fromVersion}→${h.toVersion}`)).toEqual(['0.0→1.0', '1.0→1.1']);
-    expect(st.dictionary.R.find((f) => f.version === '1.0')!.competencies).toHaveLength(3);
+    expect(st.history.map((h) => `${h.fromVersion}→${h.toVersion}`)).toEqual(['0.0→1.0.0', '1.0.0→1.1.0']);
+    expect(st.dictionary.R.find((f) => f.version === '1.0.0')!.competencies).toHaveLength(3);
     // restore = a new release pointing back, history kept
     const rv = await revertRelease(db, WS, { release_id: r2.release_id, reason: 'Thử khôi phục', actor: 'local' });
     const d3 = await loadDictionary(db, WS, rv.release_id);
     expect(d3.C).toHaveLength(3);
     expect((await db.select().from(t.release)).length).toBe(3);
+    expect(rv.version_label).toBe('1.1.1'); // P3.8: a revert raises PATCH
+    // P3 acceptance 4: writing again after the revert does not reuse a code@version key
+    await confirmJdSet(db, WS, one.sessionId, [doc('A', JD_A), doc('B', JD_B), doc('C', JD_C)], 'local');
+    await createRun(db, WS, one.sessionId, { acknowledge_send: true }, 'local');
+    await runThrough(db, one.sessionId);
+    const r4 = await publish(one.sessionId);
+    expect(r4.version_label).toBe('1.2.0');
+    const d4 = await loadDictionary(db, WS, r4.release_id);
+    expect(d4.C.find((c) => c.data.label === 'Điều phối bên liên quan')!.version).toBe(2);
+    // review fix: the semantic label never repeats after a revert (1.0.0 was used by the reverted version)
+    expect((d4.C.find((c) => c.data.label === 'Điều phối bên liên quan')!.data as any).semver).toBe('2.0.0');
   });
 
   it('UPDATE định nghĩa dùng chung nêu khung bị ảnh hưởng; NEEDS_REVIEW không vào release', async () => {
@@ -163,7 +184,12 @@ describe('dây chuyền Live với CLI giả', () => {
     const r = await publish(two.sessionId);
     const d = await loadDictionary(db, WS, r.release_id);
     expect(d.C.find((c) => c.data.label === 'Ưu tiên backlog')!.version).toBe(2);
-    expect(d.C.find((c) => c.data.label === 'Viết tiêu chí nghiệm thu')!.version).toBe(1);
+    // P3.7: no framework of the new release uses it any more → Deprecated (a new version, nothing deleted)
+    const wtc = d.C.find((c) => c.data.label === 'Viết tiêu chí nghiệm thu')!;
+    expect(wtc.version).toBe(2);
+    expect(wtc.data.status).toBe('DEPRECATED');
+    // (38): a new definition is D → MAJOR
+    expect(d.C.find((c) => c.data.label === 'Ưu tiên backlog')!.data as any).toMatchObject({ semver: '2.0.0' });
     // the 1.0 frame still locks competency@1
     expect(d.RAll[0].data.requirements.find((q) => q.competency_id === u.id)!.competency_version).toBe(1);
     expect(d.RAll[1].data.requirements.map((q) => q.competency_id)).toEqual([u.id]);
@@ -186,7 +212,7 @@ describe('dây chuyền Live với CLI giả', () => {
     const da = await loadDictionary(db, WS, ra.release_id);
     expect(da.C).toHaveLength(1);
     expect(da.R[0].data.requirements).toHaveLength(1);
-    expect(da.I).toHaveLength(1);
+    expect(da.I).toHaveLength(6); // levels 1, 3, 5 × 2 indicators (29)
     const cb = (await getCandidate(db, WS, b.sessionId))!;
     await decideCandidate(db, WS, cb.id, { decision: 'ACCEPT', reason: 'ok', actor: 'local' });
     await expect(commitCandidate(db, WS, cb.id, { expected_base_release_id: null, actor: 'local' })).rejects.toMatchObject({ code: 'BASE_CHANGED' });
@@ -263,9 +289,9 @@ describe('dây chuyền Live với CLI giả', () => {
     expect((await db.select().from(t.job)).length).toBe(jobs);
   });
 
-  it('sự kiện thật được kiểm (T7); giả thuyết chỉ cho nhóm chưa có sự kiện thật; nhánh nhanh chỉ ghi bản thử', async () => {
+  it('sự kiện thật được kiểm (T7); nhóm chưa có sự kiện thật được liệt kê, không gọi AI đề xuất giả thuyết; nhánh nhanh chỉ ghi bản thử', async () => {
     const { createSession } = await import('@cl/pipeline');
-    const { id } = await createSession(db, WS, { name: 'Có sự kiện', role_title: 'Product Owner', purpose: 'Nháp' }, 'local');
+    const { id } = await createSession(db, WS, { name: 'Có sự kiện', role_title: 'Product Owner', purpose: 'Nháp', charter: { policy_id: 'dev-small' } }, 'local');
     await confirmJdSet(db, WS, id, [doc('A', JD_A)], 'local');
     await addUserEvent(db, WS, id, { label: 'Quý 2', situation: 'Backlog quá tải', action: 'Thực hiện Ưu tiên backlog theo chi phí trì hoãn', outcome: 'Giảm 30% hạng mục', source_ref: 'biên bản họp 12/5' }, 'local');
     await createRun(db, WS, id, { acknowledge_send: true }, 'local');
@@ -273,7 +299,8 @@ describe('dây chuyền Live với CLI giả', () => {
     const b4 = await getDetail(db, WS, id, 'B4');
     expect(b4.gates[0]).toMatchObject({ status: 'PASS', actual: '1/1' });
     expect((b4.raw as any).supported).toHaveLength(1);
-    expect((b4.raw as any).hypotheses).toHaveLength(1);
+    expect((b4.raw as any).hypotheses).toHaveLength(0);
+    expect((b4.raw as any).evidence_needed).toHaveLength(1);
     await step(db, id, 'FAST');
     await acknowledge(db, WS, id, 'FAST', 'local');
     const st = await getState(db, WS, id);
@@ -281,6 +308,6 @@ describe('dây chuyền Live với CLI giả', () => {
     expect(st.trial!.competencies.every((c) => c.level === null && c.indicator === null)).toBe(true);
     expect(st.fast.done).toBe(true);
     expect(await db.select().from(t.dictRecord)).toHaveLength(0);
-    expect(st.inputs.events.map((e) => e.evidenceClass).sort()).toEqual(['HYPOTHESIS', 'REAL']);
+    expect(st.inputs.events.map((e) => e.evidenceClass)).toEqual(['REAL']);
   });
 });

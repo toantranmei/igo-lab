@@ -29,8 +29,8 @@ services:
 
   web:
     build: { context: ., dockerfile: docker/Dockerfile, target: runner }
-    command: ["pnpm", "start"]
     environment:
+      ROLE: web
       DATABASE_URL: postgres://cl_app:${POSTGRES_APP_PASSWORD:-cl_app_dev}@postgres:5432/competence_lab
       DATA_DIR: /data
       HOST: 0.0.0.0 # inside the container only; the port is published on 127.0.0.1 below
@@ -46,8 +46,8 @@ services:
 
   worker:
     build: { context: ., dockerfile: docker/Dockerfile, target: runner }
-    command: ["pnpm", "worker"]
     environment:
+      ROLE: worker
       DATABASE_URL: postgres://cl_app:${POSTGRES_APP_PASSWORD:-cl_app_dev}@postgres:5432/competence_lab
       DATA_DIR: /data
       # Long-lived token from `claude setup-token`. Only this container receives it.

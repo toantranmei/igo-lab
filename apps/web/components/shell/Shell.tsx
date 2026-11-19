@@ -45,9 +45,10 @@ export function SessionPicker({ current }: { current: string }) {
           const v = e.target.value;
           if (v === '__new') router.push('/sessions?new=1');
           else if (v === '__manage') router.push('/sessions');
-          else router.push(`/s/${v}/line`);
+          else router.push(v === EXAMPLE_SESSION_ID ? '/demo/line' : `/s/${v}/run`);
         }}
       >
+        {!current ? <option value="">— Chọn phiên —</option> : null}
         <option value={EXAMPLE_SESSION_ID}>Default Example · Product Owner</option>
         {items.map((s) => (
           <option key={s.id} value={s.id}>
@@ -76,7 +77,7 @@ export function Sidebar({ sessionId, tab }: { sessionId: string | null; tab: str
       </div>
       <nav aria-label="Điều hướng chính">
         {TABS.map((t) => (
-          <Link key={t.id} className={'nav' + (tab === t.id ? ' active' : '')} href={`/s/${sid}/${t.id}`} aria-current={tab === t.id ? 'page' : undefined}>
+          <Link key={t.id} className={'nav' + (tab === t.id ? ' active' : '')} href={sid === EXAMPLE_SESSION_ID ? `/demo/${t.id}` : `/s/${sid}/${t.id}`} aria-current={tab === t.id ? 'page' : undefined}>
             {t.icon} &nbsp; {t.label}
           </Link>
         ))}

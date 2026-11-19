@@ -6,14 +6,14 @@ test('A06 · Lượt sau dùng từ điển đã công bố: reuse đúng một 
   await resetDatabase();
   const po = await seedSession(request, 'A06 PO', 'Product Owner', [{ name: 'A', text: PO_A }, { name: 'B', text: PO_B }]);
   await apiRun(request, po, ALL);
-  expect((await publish(request, po)).body.version_label).toBe('1.0');
+  expect((await publish(request, po)).body.version_label).toBe('1.0.0');
 
   const ba = await seedSession(request, 'A06 BA', 'Business Analyst', [{ name: 'C', text: BA_A }]);
   await apiRun(request, ba, ALL);
   await page.goto(`/s/${ba}/audit`);
   const panel = page.getByTestId('live-release');
   await expect(panel).toContainText('DỰ KIẾN');
-  await expect(panel).toContainText('nền v1.0');
+  await expect(panel).toContainText('nền v1.0.0');
   const rows = page.getByTestId('candidate-items').locator('tbody tr');
   const comp = page.getByTestId('candidate-items').locator('tbody tr:has(td:nth-child(2):text-is("Năng lực"))');
   await expect(comp.filter({ has: page.locator('td:nth-child(4) :text-is("REUSE")') })).toHaveCount(1);
@@ -29,17 +29,24 @@ test('A06 · Lượt sau dùng từ điển đã công bố: reuse đúng một 
   await expect(page.getByTestId('receipt')).toContainText('rel_');
 
   const releases = await (await request.get('/api/releases')).json();
-  expect(releases.map((r: any) => r.version_label)).toEqual(['1.0', '1.1']);
+  expect(releases.map((r: any) => r.version_label)).toEqual(['1.0.0', '1.1.0']);
   const frames = await (await request.get(`/api/releases/${releases[1].release_id}/frameworks`)).json();
   expect(frames.map((f: any) => f.id).sort()).toEqual(['R-business-analyst', 'R-product-owner']);
   const comps = await (await request.get(`/api/releases/${releases[1].release_id}/competencies`)).json();
   expect(comps.filter((c: any) => c.label === 'Ưu tiên backlog')).toHaveLength(1);
   expect(comps.filter((c: any) => c.label === 'Viết tiêu chí nghiệm thu')).toHaveLength(1); // only the PO one; the BA near-match stayed out
   // diff + old version are visible
+  // the dictionary is shared by the workspace: the old session address redirects to /dictionary
   await page.goto(`/s/${ba}/dictionary`);
+  await expect(page).toHaveURL(/\/dictionary\?s=/);
   await page.locator('[data-dict-tab="versions"]').click();
   await expect(page.locator('#dictionary')).toContainText('1.0');
   await expect(page.locator('#dictionary')).toContainText('1.1');
+  await page.locator('[data-dict-tab="releases"]').click();
+  await expect(page.getByTestId('release-notes').first()).toContainText('Bản 1.1.0');
+  await expect(page.getByTestId('update-net').first()).toBeVisible();
+  await page.locator('#dict-at').selectOption({ label: '1.0.0' });
+  await page.locator('#dict-at').selectOption({ label: 'bản mới nhất' });
   await expect(page.locator('#dictionary')).toContainText('tái sử dụng');
   // live catalog: both roles share the competency, same counts in 2D and 3D
   await page.locator('[data-dict-tab="network2d"]').click();
@@ -49,5 +56,11 @@ test('A06 · Lượt sau dùng từ điển đã công bố: reuse đúng một 
   expect(Number(n)).toBeGreaterThan(3);
   await page.goto(`/s/${ba}/framework`);
   await expect(page.locator('#framework')).toContainText('Business Analyst');
-  await expect(page.locator('#framework')).toContainText(/chưa xác định/i);
+  // P2: three E10 seats set the required level (median, formula 26)
+  await expect(page.locator('#framework')).toContainText('yêu cầu bậc 3/5');
+  // P3.11: the result screen in four parts
+  await page.goto(`/s/${ba}/results`);
+  for (const k of ['changes', 'framework', 'affected', 'audit']) await expect(page.locator(`[data-result-tab="${k}"]`)).toBeVisible();
+  await page.locator('[data-result-tab="affected"]').click();
+  await expect(page.locator('[data-testid="affected"], [data-testid="affected-empty"]')).toBeVisible();
 });

@@ -1,21 +1,35 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { AppError } from '@cl/contract';
-import { BLOCK_TASKS, DEFAULT_AGENT_CONFIG, TASKS, type AgentConfig, type TaskName } from '@cl/agents';
+import { BLOCK_TASKS, DEFAULT_AGENT_CONFIG, agentConfigFor, TASKS, type AgentConfig, type TaskName } from '@cl/agents';
 import { appendEvent, hashJson, newId, sha256, t, type Db } from '@cl/db';
 import { NORMALIZER_VERSION, PARSER_VERSION, SEGMENTER_VERSION, crossCheck, parseFile, parsePasted, segmentId, uploadLimits, type BlobStore, type IngestWarning, type ParsedDocument } from '@cl/ingest';
 import { getStop, latestRelease, safeLessons } from '@cl/registry';
-import { DEFAULT_POLICY, type LoadedDoc, type RunSnapshot, type SnapDoc } from './types';
+import { DEFAULT_POLICY, DEFAULT_POLICY_ID, POLICIES, policyOf, type Charter, type LoadedDoc, type RunSnapshot, type SnapDoc } from './types';
+import { budgetFrom, estimateRun, type EstimateBasis } from './estimate';
+import { addHumanEvent, aiToolEntry, ensureDefaultAiTool, listSurvey, type HumanEventInput } from './human';
 
 const slug = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'role';
 
-export async function createSession(db: Db, workspaceId: string, input: { name: string; role_title: string; purpose: string; context?: string; family?: string; industry?: string }, actor: string) {
+/** `internal`: only batch production may set the root link and the audit-sample flag of a charter (P5.4). */
+export async function createSession(db: Db, workspaceId: string, input: { name: string; role_title: string; purpose: string; context?: string; family?: string; industry?: string; charter?: Charter }, actor: string, opts: { internal?: boolean } = {}) {
   const name = input.name?.trim(), role = input.role_title?.trim(), purpose = input.purpose?.trim();
   const missing = [!name && 'tên phiên', !role && 'vị trí/role', !purpose && 'mục đích'].filter(Boolean);
   if (missing.length) throw new AppError('VALIDATION', `Thiếu: ${missing.join(', ')}.`, 422, { missing });
   const id = newId('ses');
-  await db.insert(t.session).values({ id, workspaceId, name: name!, roleTitle: role!, roleId: slug(role!), purpose: purpose!, context: input.context?.trim() ?? '', family: input.family?.trim() || null, industry: input.industry?.trim() || null });
+  await db.insert(t.session).values({ id, workspaceId, name: name!, roleTitle: role!, roleId: slug(role!), purpose: purpose!, context: input.context?.trim() ?? '', family: input.family?.trim() || null, industry: input.industry?.trim() || null, charter: cleanCharter(opts.internal ? input.charter : stripInternal(input.charter)) });
   await appendEvent(db, { workspaceId, type: 'SESSION_CREATED', actor, sessionId: id, payload: { name, role_title: role } });
   return { id };
+}
+const FRAMEWORK_TYPES = ['ROOT', 'DERIVED_LEVEL', 'INDUSTRY_VARIANT'];
+const stripInternal = (c: Charter | undefined): Charter | undefined => (c ? (({ audit_sampled: _a, root_session_id: _r, ...rest }) => rest)(c) : c);
+function cleanCharter(c: Charter | undefined): Charter {
+  if (!c) return { policy_id: DEFAULT_POLICY_ID, framework_type: 'ROOT' };
+  if (c.policy_id && !POLICIES[c.policy_id]) throw new AppError('VALIDATION', `Bộ ngưỡng "${c.policy_id}" không có.`, 422);
+  if (c.framework_type && !FRAMEWORK_TYPES.includes(c.framework_type)) throw new AppError('VALIDATION', `Loại khung "${c.framework_type}" không hợp lệ.`, 422);
+  const t = (s?: string) => s?.trim() || undefined;
+  const outcomes = (c.outcomes ?? []).map((x) => x.trim()).filter(Boolean);
+  if (outcomes.length && (outcomes.length < 3 || outcomes.length > 5)) throw new AppError('VALIDATION', 'Kết quả chính: 3 đến 5 mục (30).', 422);
+  return { level: t(c.level), framework_type: c.framework_type ?? 'ROOT', decision: t(c.decision), performance_criteria: t(c.performance_criteria), owner: t(c.owner), policy_id: c.policy_id ?? DEFAULT_POLICY_ID, ...(outcomes.length ? { outcomes } : {}), ...(t(c.g11_ref) ? { g11_ref: t(c.g11_ref) } : {}), ...(t(c.g12_ref) ? { g12_ref: t(c.g12_ref) } : {}), ...(t(c.root_session_id) ? { root_session_id: t(c.root_session_id) } : {}), ...(typeof c.audit_sampled === 'boolean' ? { audit_sampled: c.audit_sampled } : {}) };
 }
 export async function getSession(db: Db, workspaceId: string, id: string) {
   const [s] = await db.select().from(t.session).where(and(eq(t.session.id, id), eq(t.session.workspaceId, workspaceId)));
@@ -46,6 +60,8 @@ export interface DocInput {
   origin_group?: string;
   usage_note?: string;
   source_url?: string;
+  /** Posting date of the job ad, YYYY-MM-DD. */
+  posted_at?: string | null;
   /** Set when this is a new version of an existing document (edited text). */
   document_id?: string;
 }
@@ -99,19 +115,25 @@ export async function confirmJdSet(db: Db, workspaceId: string, sessionId: strin
   const parsed = docs.map((d) => ({ d, p: parsePasted(d.name, d.text ?? '', limits) }));
   const bad = parsed.filter(({ p }) => p.warnings.some((w) => w.severity === 'error'));
   if (bad.length) throw new AppError('DOCUMENT_INVALID', `Tài liệu không hợp lệ: ${bad.map(({ p }) => `${p.original_name} (${p.warnings.find((w) => w.severity === 'error')!.message})`).join('; ')}`, 422);
+  for (const { d, p } of parsed) {
+    const pa = d.posted_at?.trim();
+    if (pa && !(/^\d{4}-\d{2}-\d{2}$/.test(pa) && !Number.isNaN(Date.parse(pa)) && Date.parse(pa) <= Date.now() + 86400000))
+      throw new AppError('VALIDATION', `Ngày đăng của "${p.original_name}" phải là ngày hợp lệ dạng YYYY-MM-DD, không ở tương lai.`, 422);
+  }
   return db.transaction(async (tx) => {
     const existing = await tx.select().from(t.documentVersion).where(eq(t.documentVersion.workspaceId, workspaceId));
     const refs: { document_id: string; version: number }[] = [];
     for (const { d, p } of parsed) {
       const source_ref = d.source_ref?.trim() || '';
-      const same = existing.find((e) => e.contentSha256 === p.content_sha256 && e.sourceRef === source_ref && (e.originGroup ?? '') === (d.origin_group?.trim() ?? ''));
+      const posted_at = d.posted_at?.trim() || null;
+      const same = existing.find((e) => e.contentSha256 === p.content_sha256 && e.sourceRef === source_ref && (e.originGroup ?? '') === (d.origin_group?.trim() ?? '') && ((e.meta as any)?.posted_at ?? null) === posted_at);
       if (same) {
         if (!refs.some((r) => r.document_id === same.documentId)) refs.push({ document_id: same.documentId, version: same.version });
         continue;
       }
       const documentId = d.document_id && existing.some((e) => e.documentId === d.document_id) ? d.document_id : 'doc_' + sha256(`${workspaceId}|${p.original_name}|${p.content_sha256}`).slice(0, 14);
       const version = Math.max(0, ...existing.filter((e) => e.documentId === documentId).map((e) => e.version)) + 1;
-      const row = { workspaceId, documentId, version, sourceKind: d.blob_sha256 ? 'file' : 'paste', sourceRef: source_ref, originalName: p.original_name, contentSha256: p.content_sha256, blobSha256: d.blob_sha256 ?? null, normalizedText: p.normalized_text, normalizerVersion: NORMALIZER_VERSION, parserVersion: PARSER_VERSION, segmenterVersion: SEGMENTER_VERSION, segments: p.segments, originGroup: d.origin_group?.trim() || null, submittedBy: actor, roleId: session.roleId, language: p.language, checkStatus: p.warnings.some((w) => w.severity === 'warn') ? 'WARN' : 'OK', usageNote: d.usage_note?.trim() || null, sourceUrl: d.source_url?.trim() || null, meta: { chars: p.chars, pii: p.pii.length } };
+      const row = { workspaceId, documentId, version, sourceKind: d.blob_sha256 ? 'file' : 'paste', sourceRef: source_ref, originalName: p.original_name, contentSha256: p.content_sha256, blobSha256: d.blob_sha256 ?? null, normalizedText: p.normalized_text, normalizerVersion: NORMALIZER_VERSION, parserVersion: PARSER_VERSION, segmenterVersion: SEGMENTER_VERSION, segments: p.segments, originGroup: d.origin_group?.trim() || null, submittedBy: actor, roleId: session.roleId, language: p.language, checkStatus: p.warnings.some((w) => w.severity === 'warn') ? 'WARN' : 'OK', usageNote: d.usage_note?.trim() || null, sourceUrl: d.source_url?.trim() || null, meta: { chars: p.chars, pii: p.pii.length, ...(posted_at ? { posted_at } : {}) } };
       await tx.insert(t.documentVersion).values(row);
       existing.push({ ...row, submittedAt: new Date().toISOString() } as any);
       refs.push({ document_id: documentId, version });
@@ -139,17 +161,14 @@ export async function loadDocs(db: Db, workspaceId: string, refs: { document_id:
   for (const r of refs) {
     const d = byRef.get(`${r.document_id}@${r.version}`);
     if (!d) continue;
-    out.push({ ref: `${d.documentId}@${d.version}`, document_id: d.documentId, version: d.version, original_name: d.originalName, content_sha256: sha256(d.normalizedText), source_kind: d.sourceKind, source_ref: d.sourceRef, origin_group: d.originGroup, check_status: d.checkStatus, language: d.language, usage_note: d.usageNote, source_url: d.sourceUrl, text: d.normalizedText, segments: (d.segments as any[]).map((s) => ({ id: segmentId(d.documentId, d.version, s.n), n: s.n, start: s.start, end: s.end, text: s.text })) });
+    out.push({ ref: `${d.documentId}@${d.version}`, document_id: d.documentId, version: d.version, original_name: d.originalName, content_sha256: sha256(d.normalizedText), source_kind: d.sourceKind, source_ref: d.sourceRef, origin_group: d.originGroup, check_status: d.checkStatus, language: d.language, usage_note: d.usageNote, source_url: d.sourceUrl, posted_at: (d.meta as any)?.posted_at ?? null, text: d.normalizedText, segments: (d.segments as any[]).map((s) => ({ id: segmentId(d.documentId, d.version, s.n), n: s.n, start: s.start, end: s.end, text: s.text })) });
   }
   return out;
 }
 
-export async function addUserEvent(db: Db, workspaceId: string, sessionId: string, input: { label: string; situation?: string; action?: string; outcome?: string; source_ref?: string }, actor: string) {
-  await getSession(db, workspaceId, sessionId);
-  if (!input.label?.trim() || !input.action?.trim()) throw new AppError('VALIDATION', 'Sự kiện cần tên và hành động.', 422);
-  const id = newId('evt');
-  await db.insert(t.userEvent).values({ id, workspaceId, sessionId, label: input.label.trim(), situation: input.situation?.trim() ?? '', action: input.action.trim(), outcome: input.outcome?.trim() ?? '', sourceRef: input.source_ref?.trim() ?? '', submittedBy: actor });
-  return { id };
+/** Events go through the P4.2 de-identification check (see human.ts). */
+export async function addUserEvent(db: Db, workspaceId: string, sessionId: string, input: HumanEventInput, actor: string) {
+  return addHumanEvent(db, workspaceId, sessionId, input, actor);
 }
 export const listUserEvents = (db: Db, sessionId: string) => db.select().from(t.userEvent).where(eq(t.userEvent.sessionId, sessionId)).orderBy(asc(t.userEvent.createdAt));
 export async function removeUserEvent(db: Db, sessionId: string, id: string) {
@@ -163,24 +182,39 @@ export function runPlan(jdCount: number, config: AgentConfig = DEFAULT_AGENT_CON
   const seats = config.seats.map((s) => s.model.replace('claude-', '')).join(' / ');
   return {
     tasks: [
-      row('T1', 'mỗi JD', String(jdCount)),
-      row('T2', 'mỗi JD hợp lệ', `≤ ${jdCount}`),
-      row('T3', '1 lần/lượt; chia lô 100 khi nhiều hơn', '1+', 'bỏ qua nếu chỉ có 1 nhiệm vụ'),
-      row('T4', 'mỗi JD hợp lệ', `≤ ${jdCount}`),
-      row('T5', '1 lần/lượt; chia lô 100 khi nhiều hơn', '1+', 'bỏ qua nếu chỉ có 1 ứng viên'),
-      row('T6', 'mỗi nhóm ứng viên có năng lực nền gần giống', 'K', 'bỏ qua khi từ điển nền rỗng'),
+      row('E1', 'một lô 15–20 JD (≈ 6 000 token); JD trùng gần đúng không gửi', `≈ ${Math.max(1, Math.ceil((jdCount * 1600) / 7000))}`),
+      row('E23', 'một lô cụm nhiệm vụ do code gom sẵn; chỉ trả phần sửa', '1+', 'bỏ qua nếu chỉ có 1 nhiệm vụ'),
+      row('E4', 'một lô cụm ứng viên kèm năng lực gần nhất trong từ điển', '1+', 'bỏ qua nếu chỉ có 1 ứng viên và từ điển rỗng'),
       row('T7', 'mỗi sự kiện thật', String(eventCount), eventCount ? undefined : 'bỏ qua: không có sự kiện thật'),
-      row('T13', 'mỗi nhóm chưa có sự kiện thật', 'G'),
-      row('T8', 'mỗi nhiệm vụ', 'T'),
-      { ...row('T9', 'mỗi năng lực × 3 ghế', hasRubric ? '3C' : '0', hasRubric ? undefined : 'bỏ qua: không có rubric bậc'), model: seats },
-      row('T10', 'mỗi năng lực', 'C', 'thêm một vòng viết lại cho chỉ báo dưới ngưỡng'),
-      { ...row('T11', '3 ghế, mỗi ghế 1 lần', '3'), model: seats },
-      row('T12', '1 lần/lượt', '1'),
+      row('E5', '25 nhiệm vụ mỗi lời gọi; danh sách năng lực là tiền tố cố định', '⌈T/25⌉'),
+      { ...row('E10', '3 ghế, mỗi ghế 1 lời gọi (một lô ≈ 7 000 ký tự)', '3+', hasRubric ? undefined : 'chưa có rubric bậc: bậc chấm theo mô tả chung'), model: seats },
+      row('E6', 'nhiều năng lực mỗi lời gọi', '1+', 'thêm một vòng viết lại cho chỉ báo dưới ngưỡng'),
+      { ...row('E7', '3 ghế, mỗi ghế 1 lần', '3'), model: seats },
+      row('E8', '1 lô hồ sơ', '1'),
     ],
-    estimate: { fixed: jdCount * 3 + 2 + 3 + 1 + eventCount, note: `≈ ${jdCount * 3 + 6 + eventCount} + T + 2G + C lời gọi (T = số nhiệm vụ, G = số nhóm ứng viên, C = số năng lực). Ví dụ 8 JD, 6 nhiệm vụ, 6 nhóm: khoảng 48 lời gọi. Chạy lại cùng dữ liệu: 0 lời gọi.` },
+    estimate: { fixed: Math.max(1, Math.ceil((jdCount * 1600) / 7000)) + 8 + eventCount, note: 'Gọi theo lô: khoảng 10–15 lời gọi cho một khung 50 JD (thiết kế P1). Bảng ước tính token ở trên tính chi tiết theo từng bước. Chạy lại cùng dữ liệu: 0 lời gọi.' },
     disclosure: 'Nội dung JD và sự kiện bạn nhập sẽ được gửi tới Anthropic qua Claude CLI bằng tài khoản đang đăng nhập trên máy chạy worker. Không có lời gọi nào trước khi bạn xác nhận ở bước này.',
     block_tasks: BLOCK_TASKS,
   };
+}
+
+async function estimateBasis(db: Db, workspaceId: string, jds: number, events: number, baseReleaseId: string | null): Promise<EstimateBasis> {
+  let baseCompetencies = 0;
+  if (baseReleaseId) {
+    const [r] = await db.select({ members: t.release.members }).from(t.release).where(and(eq(t.release.releaseId, baseReleaseId), eq(t.release.workspaceId, workspaceId)));
+    baseCompetencies = ((r?.members as any[]) ?? []).filter((m) => m.kind === 'C').length;
+  }
+  return { jds, events, rubric: 0, seats: DEFAULT_AGENT_CONFIG.seats.length, baseCompetencies };
+}
+
+/** Pre-run estimate for the "create run" screen (spec P0.9): calls and tokens per block, and the budget the run will get. */
+export async function sessionEstimate(db: Db, workspaceId: string, sessionId: string) {
+  const session = await getSession(db, workspaceId, sessionId);
+  const [jd] = await db.select().from(t.jdSetRevision).where(eq(t.jdSetRevision.sessionId, sessionId)).orderBy(desc(t.jdSetRevision.revision)).limit(1);
+  const events = await listUserEvents(db, sessionId);
+  const latest = await latestRelease(db, workspaceId);
+  const estimate = estimateRun(await estimateBasis(db, workspaceId, ((jd?.documentRefs as any[]) ?? []).length, events.length, latest?.releaseId ?? null), agentConfigFor(policyOf(((session.charter ?? {}) as Charter).policy_id).rigor));
+  return { ...estimate, budget: budgetFrom(estimate) };
 }
 
 export async function createRun(db: Db, workspaceId: string, sessionId: string, input: { acknowledge_send: boolean; base_release_id?: string | null; jd_set_revision?: number; cli_version?: string | null }, actor: string) {
@@ -203,21 +237,31 @@ export async function createRun(db: Db, workspaceId: string, sessionId: string, 
   }
   const events = await listUserEvents(db, sessionId);
   const lessons = await safeLessons(db, workspaceId);
+  // P3.10 / Q2: the reasons of earlier rejections for the same role load into the next run by themselves
+  const roleSessions = (await db.select({ id: t.session.id }).from(t.session).where(and(eq(t.session.workspaceId, workspaceId), eq(t.session.roleId, session.roleId)))).map((x) => x.id);
+  const roleRuns = roleSessions.length ? await db.select({ id: t.run.id, runNo: t.run.runNo }).from(t.run).where(inArray(t.run.sessionId, roleSessions)) : [];
+  const rejected = roleRuns.length ? (await db.select().from(t.candidate).where(inArray(t.candidate.runId, roleRuns.map((r) => r.id)))).filter((c) => (c.decision as any)?.decision === 'REJECT') : [];
   const snapshot: RunSnapshot = {
     schema: 1,
-    session: { id: session.id, name: session.name, role_title: session.roleTitle, role_id: session.roleId, purpose: session.purpose, context: session.context, family: session.family, industry: session.industry },
+    session: { id: session.id, name: session.name, role_title: session.roleTitle, role_id: session.roleId, purpose: session.purpose, context: session.context, family: session.family, industry: session.industry, charter: (session.charter ?? {}) as Charter },
     jd_set: { id: jd.jdSetId, revision: jd.revision },
     documents: docs.map(({ text: _t, segments: _s, ...d }): SnapDoc => d),
-    events: events.map((e) => ({ id: e.id, label: e.label, situation: e.situation, action: e.action, outcome: e.outcome, source_ref: e.sourceRef })),
+    events: events.map((e) => ({ id: e.id, label: e.label, situation: e.situation, action: e.action, outcome: e.outcome, source_ref: e.sourceRef, person_code: e.personCode, person_group: e.personGroup as any, kind: e.kind as any, retain_until: e.retainUntil })),
+    survey: (await listSurvey(db, sessionId)).map((r) => ({ respondent: r.respondentCode, label: r.competencyLabel, importance: r.importance, discrimination: r.discrimination, level: r.level, retain_until: r.retainUntil })),
+    ai_tool: (await ensureDefaultAiTool(db), await aiToolEntry(db)),
     base_release_id: base?.releaseId ?? null,
     base_version_label: base?.versionLabel ?? '0.0',
-    policy: DEFAULT_POLICY,
-    agent_config: DEFAULT_AGENT_CONFIG,
+    policy: policyOf(((session.charter ?? {}) as Charter).policy_id),
+    agent_config: agentConfigFor(policyOf(((session.charter ?? {}) as Charter).policy_id).rigor),
     cli_version: input.cli_version ?? null,
-    lessons_loaded: lessons.map((l) => ({ id: l.id, fingerprint: l.fingerprint, text: (l.data as any).text })),
+    lessons_loaded: [
+      ...lessons.map((l) => ({ id: l.id, fingerprint: l.fingerprint, text: (l.data as any).text })),
+      ...rejected.map((c) => ({ id: `REJ-${c.id}`, fingerprint: sha256(`reject|${(c.decision as any).reason}`).slice(0, 16), text: `Lượt ${roleRuns.find((r) => r.id === c.runId)?.runNo ?? '?'} bị từ chối: ${(c.decision as any).reason}` })),
+    ],
     rubric: [],
     versions: { normalizer: NORMALIZER_VERSION, segmenter: SEGMENTER_VERSION, parser: PARSER_VERSION },
   };
+  snapshot.budget = budgetFrom(estimateRun(await estimateBasis(db, workspaceId, snapshot.documents.length, snapshot.events.length, snapshot.base_release_id), snapshot.agent_config));
   return db.transaction(async (tx) => {
     const [{ n }] = await tx.select({ n: sql<number>`coalesce(max(${t.run.runNo}), 0)::int` }).from(t.run).where(eq(t.run.sessionId, sessionId));
     const id = newId('run');

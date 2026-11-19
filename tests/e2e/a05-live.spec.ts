@@ -16,11 +16,12 @@ test('A05 · Hai phiên Live khác JD chạy qua agent (CLI giả): job/attempt 
   await expect(page.locator('[data-prod-select="B0"] .cl-badge.code')).toBeVisible();
 
   await runBlock(page); // B0, code only
-  await page.locator('#step').click(); // B1 uses T1
+  await page.locator('#step').click(); // B1 uses E1 (one call for the batch)
   await expect(page.locator('#step-guide')).toBeVisible();
   await expect(page.locator('#guide-next')).toBeVisible({ timeout: 60_000 });
+  await page.locator('#guide-next').click(); // code preparation beat (K1, K2, K7, K8)
   await page.locator('#guide-next').click();
-  await expect(page.getByTestId('guide-source')).toContainText('T1.jd_scope');
+  await expect(page.getByTestId('guide-source')).toContainText('E1.jd_read');
   await expect(page.getByTestId('guide-source')).toContainText('haiku');
   await expect(page.getByTestId('guide-computed-at')).toBeVisible();
   await page.locator('#guide-next').click();
@@ -47,7 +48,8 @@ test('A05 · Hai phiên Live khác JD chạy qua agent (CLI giả): job/attempt 
   await expect(page.locator('#audit-gates')).toContainText('Không áp dụng');
   await expect(page.locator('#audit')).toContainText('JOB_RESULT');
   await page.goto(`/s/${s1}/inputs`);
-  await expect(page.locator('#inputs')).toContainText('GIẢ THUYẾT');
+  await page.locator('[data-input-tab="data"]').click();
+  await expect(page.locator('#inputs')).toContainText('Sắp xếp backlog theo giá trị');
   await page.goto(`/s/${s1}/line`);
   await expect(page.locator('main')).toContainText('chưa phải bằng chứng nghề đã kiểm chứng');
 });

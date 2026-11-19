@@ -4,7 +4,7 @@ import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
 export const CONTROL = path.resolve(__dirname, '../../.e2e-data/fake-mode');
 /** Switch the fake Claude CLI's behaviour for subsequent calls ('' = normal). */
-export const fakeMode = (mode: '' | 'bad_schema' | 'exit1' | 'cli_missing') => writeFileSync(CONTROL, mode);
+export const fakeMode = (mode: '' | 'bad_schema' | 'exit1' | 'cli_missing' | 'quota' | `slow:${number}`) => writeFileSync(CONTROL, mode);
 
 /** Walk the open beat viewer to its last beat and acknowledge. Waits while a Live block is computing. */
 export async function finishGuide(page: Page) {
@@ -31,7 +31,7 @@ export const BA_A = jd('Business Analyst', 'Công ty C', ['NV: Sắp xếp backl
 
 /** Create a Live session with pasted JDs and a run, through the API (the UI path is covered by A04). */
 export async function seedSession(request: APIRequestContext, name: string, role: string, docs: { name: string; text: string }[], events: Record<string, string>[] = []) {
-  const s = await (await request.post('/api/sessions', { data: { name, role_title: role, purpose: 'Khung nháp nội bộ', context: 'Thử nghiệm' } })).json();
+  const s = await (await request.post('/api/sessions', { data: { name, role_title: role, purpose: 'Khung nháp nội bộ', context: 'Thử nghiệm', charter: { policy_id: 'dev-small' } } })).json();
   const set = await request.post(`/api/sessions/${s.id}/jd-sets`, { data: { documents: docs.map((d) => ({ ...d, source_ref: `paste://${d.name}`, origin_group: `Tổ chức ${d.name}` })) } });
   expect(set.ok(), await set.text()).toBe(true);
   for (const e of events) await request.post(`/api/sessions/${s.id}/events`, { data: e });

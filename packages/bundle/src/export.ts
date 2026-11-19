@@ -1,5 +1,5 @@
 import { scrubPaths } from '@cl/contract';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, like } from 'drizzle-orm';
 import { strToU8, zipSync } from 'fflate';
 import { AppError } from '@cl/contract';
 import { appendEvent, newId, sha256, t, type Db, type DbOrTx } from '@cl/db';
@@ -67,6 +67,9 @@ export async function buildBundle(db: Db, blobs: BlobReader | null, workspaceId:
       const keys = [...new Set(calls.map((c) => c.taskKey))];
       const results: (typeof t.agentResult.$inferSelect)[] = [];
       for (let i = 0; i < keys.length; i += 500) results.push(...(await tx.select().from(t.agentResult).where(inArray(t.agentResult.taskKey, keys.slice(i, i + 500)))));
+      // per-item memos of batched agents (e.g. one JD read by E1) hang off the call that produced them
+      const callIds = calls.filter((c) => !c.cacheHit).map((c) => c.id);
+      for (let i = 0; i < callIds.length; i += 500) results.push(...(await tx.select().from(t.agentResult).where(and(inArray(t.agentResult.firstCallId, callIds.slice(i, i + 500)), like(t.agentResult.taskId, '%#item')))));
       const rowsBy: Record<string, any[]> = {
         'runs/sessions.jsonl': sessions,
         'runs/documents.jsonl': docs.map((d) => {
@@ -142,7 +145,10 @@ export async function createExport(db: Db, blobs: { put(b: Uint8Array): Promise<
 export async function exportFramework(db: Db, workspaceId: string, input: { framework_id?: string; role_id?: string; version_label?: string }) {
   const rows = await db.select().from(t.dictRecord).where(and(eq(t.dictRecord.workspaceId, workspaceId), eq(t.dictRecord.kind, 'R')));
   const mine = rows.filter((r) => (input.framework_id ? r.id === input.framework_id : input.role_id ? (r.data as any).role_id === input.role_id : true)).sort((a, b) => a.version - b.version);
-  const r = input.version_label ? mine.find((x) => (x.data as any).version_label === input.version_label) : mine.at(-1);
+  // an old two-part label (1.0) is an alias of its three-part form (1.0.0), P3.1
+  const three = (x: string) => { const p = x.split('.').map(Number); return [p[0] || 0, p[1] || 0, p[2] || 0].join('.'); };
+  const same = (a: string, b: string) => a === b || three(a) === three(b);
+  const r = input.version_label ? mine.find((x) => same(String((x.data as any).version_label), input.version_label!)) : mine.at(-1);
   if (!r) throw new AppError('NOT_FOUND', 'Không tìm thấy phiên bản khung này trong từ điển đã công bố.', 404);
   const data = r.data as any;
   const one = async (kind: string, id: string, version: number) => (await db.select().from(t.dictRecord).where(and(eq(t.dictRecord.workspaceId, workspaceId), eq(t.dictRecord.kind, kind), eq(t.dictRecord.id, id), eq(t.dictRecord.version, version))))[0];

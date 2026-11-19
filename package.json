@@ -19,6 +19,9 @@
     "db:up": "docker compose up -d postgres",
     "db:migrate": "tsx packages/db/src/migrate.ts",
     "verify:live": "tsx scripts/verify-live.ts",
+    "anchor:eval": "tsx scripts/anchor-eval.ts",
+    "anchor:label": "tsx scripts/anchor-label.ts",
+    "compare:model": "tsx scripts/compare-model.ts",
     "verify:stability": "tsx scripts/verify-stability.ts"
   },
   "devDependencies": {

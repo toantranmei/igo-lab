@@ -19,6 +19,8 @@ export const GateResultSchema = z.object({
   rule_version: z.string(),
   reason: z.string().optional(),
   required: z.boolean(),
+  /** P2.1–P2.2: a PASS with a deviation ticket is "đạt bằng phiếu sai lệch", not "đạt bằng dữ liệu". */
+  deviation: z.object({ id: z.string(), reason: z.string(), risk: z.string(), status: z.enum(['OPEN', 'CLOSED']) }).optional(),
 });
 export type GateResult = z.infer<typeof GateResultSchema>;
 

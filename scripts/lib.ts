@@ -64,7 +64,7 @@ export async function realRunner() {
 }
 
 export async function newRun(db: Db, cliVersion: string | null) {
-  const { id } = await createSession(db, WS, { name: 'verify', role_title: 'Product Owner', purpose: 'Khung nháp nội bộ để kiểm tra đường ống', context: 'Công ty công nghệ' }, 'local');
+  const { id } = await createSession(db, WS, { name: 'verify', role_title: 'Product Owner', purpose: 'Khung nháp nội bộ để kiểm tra đường ống', context: 'Công ty công nghệ', charter: { policy_id: 'dev-small' } }, 'local');
   await confirmJdSet(db, WS, id, SAMPLE_JDS.map((d) => ({ ...d, source_ref: `sample://${d.name}`, origin_group: d.name })), 'local');
   await createRun(db, WS, id, { acknowledge_send: true, cli_version: cliVersion ?? undefined }, 'local');
   return id;

@@ -3,7 +3,9 @@ node_modules
 dist
 .env
 .env.local
-data/
+# local data (blobs, datasets); the reference lists (occupations, O*NET) are part of the source
+/data/*
+!/data/reference/
 test-results/
 playwright-report/
 *.tsbuildinfo

@@ -12,6 +12,7 @@ export async function resetDatabase() {
   const tables = await sql<{ tablename: string }[]>`select tablename from pg_tables where schemaname = 'public' and tablename <> 'worker_status'`;
   await sql.unsafe(`truncate ${tables.map((t) => `"${t.tablename}"`).join(', ')} restart identity cascade`);
   await sql`insert into workspace (id, name) values ('ws_default', 'Workspace mặc định')`;
+  await sql`update worker_status set breaker = null`;
   await sql.end();
 }
 export default async function globalSetup() {

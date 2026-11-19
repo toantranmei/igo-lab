@@ -100,11 +100,16 @@ export interface ChangeItem {
   entity: string;
   id: string;
   name?: string;
-  action: 'ADD' | 'UPDATE' | 'REUSE' | 'NEEDS_REVIEW';
+  action: 'ADD' | 'UPDATE' | 'REUSE' | 'NEEDS_REVIEW' | 'DEPRECATE';
   before: string | null;
   after: string | null;
   reason?: string;
   affected?: string[];
+  /** P3: change types (S, D, P, V, B, E, L), the bump they cause, and the record's version before → after. */
+  change_types?: string[];
+  bump?: 'MAJOR' | 'MINOR' | 'PATCH' | 'NONE';
+  from_version?: string;
+  to_version?: string;
 }
 
 export interface LogEntry {
@@ -268,7 +273,27 @@ export interface SessionState {
   trial: DictFrame | null;
   aiReady?: { ok: boolean; message: string };
   /** Live only: auto-run switch of the current run and the block it is on. */
-  auto?: { on: boolean; note: string; running: BlockId | null };
+  auto?: { on: boolean; note: string; running: BlockId | null; stop?: RunStop | null };
+}
+
+/** Why a run stopped (P0): one of seven codes, the block, a sentence for people, and what can be done next. */
+export type StopCode = 'QUOTA' | 'GATE' | 'AI_ERROR' | 'PAUSED' | 'BUDGET' | 'ANOMALY' | 'DONE';
+export type StopAction = 'RESUME' | 'SCHEDULE' | 'RETRY' | 'ACCEPT_OVER' | 'OPEN_STEP' | 'REVIEW_CANDIDATE' | 'NEW_RUN';
+export interface RunStop {
+  code: StopCode;
+  block: BlockId | null;
+  message: string;
+  /** Machine code of the underlying error, e.g. AGENT_QUOTA, BUDGET_BLOCK, ANOMALY_INPUT. */
+  cause?: string;
+  actions: StopAction[];
+  /** For QUOTA: when the usage limit resets (ISO). */
+  until?: string | null;
+  /** Numbers behind the stop, e.g. { estimated_tokens, limit } for ANOMALY_INPUT. */
+  details?: Record<string, unknown>;
+  at: string;
+  /** "Hẹn giờ chạy": the worker resumes the run at this time. */
+  scheduled_for?: string;
+  scheduled_by?: string;
 }
 
 export interface SessionListItem {
@@ -295,6 +320,8 @@ export interface SessionSource {
   setFault?(value: string): Promise<void>;
   recover?(reason: string): Promise<void>;
   approveLessons?(reason: string): Promise<void>;
+  /** Reject the pending lessons (e.g. a finding caused by a system defect, not a lesson to load into later runs). */
+  rejectLessons?(reason: string): Promise<void>;
   startNextRun?(): Promise<void>;
   subscribe(listener: () => void): () => void;
 }

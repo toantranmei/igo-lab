@@ -69,6 +69,10 @@ export class LiveSource implements SessionSource {
     await api(`/workspace/reopen`, { method: 'POST', json: { reason, session_id: this.sessionId } });
     this.emit();
   }
+  async rejectLessons(reason: string) {
+    await api(`/lessons/decision`, { method: 'POST', json: { decision: 'REJECTED', reason, session_id: this.sessionId } });
+    this.emit();
+  }
   async approveLessons(reason: string) {
     await api(`/lessons/decision`, { method: 'POST', json: { decision: 'SAFE', reason, session_id: this.sessionId } });
     this.emit();

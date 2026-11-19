@@ -1,0 +1,104 @@
+name: CI
+
+# push main → one image (web + worker, ROLE picks) on GHCR → Coolify deploys the apps tagged `igo-lab` (docs/DEPLOY.md).
+# Tests run on the dev machine before the push; CI only builds and deploys.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Is this commit still the head of main?
+        id: head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$head_sha" = "$GITHUB_SHA" ]; then echo "latest=true" >> "$GITHUB_OUTPUT"; else echo "latest=false" >> "$GITHUB_OUTPUT"; fi
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/toantranmei/igo-lab
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=sha,prefix=sha-,format=short
+            type=raw,value=main,enable=${{ steps.head.outputs.latest == 'true' }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=igo-lab
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: runner
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: [image]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+      COOLIFY_URL: ${{ vars.COOLIFY_URL }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+      # "user:password" of the site's basic auth, so the job can read /api/health from outside
+      PRODUCTION_BASIC_AUTH: ${{ secrets.PRODUCTION_BASIC_AUTH }}
+    steps:
+      - name: Check deploy configuration
+        id: config
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$COOLIFY_TOKEN" ] || [ -z "$COOLIFY_URL" ]; then
+            echo "::notice title=Deploy skipped::COOLIFY_TOKEN / COOLIFY_URL not set; image ${GITHUB_SHA} pushed only."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          head_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)"
+          if [ "$head_sha" != "$GITHUB_SHA" ]; then
+            echo "::notice title=Deploy skipped::main moved to ${head_sha}; the newer run deploys."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          sparse-checkout: scripts
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          node-version: 22
+      - name: Deploy web (migrates), then worker
+        if: steps.config.outputs.enabled == 'true'
+        run: node scripts/coolify-deploy.mjs

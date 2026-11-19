@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { asc, desc, eq } from 'drizzle-orm';
+import { asc, desc, eq, sql } from 'drizzle-orm';
 import { AppError } from '@cl/contract';
-import { DEFAULT_AGENT_CONFIG, MIN_CLI_VERSION } from '@cl/agents';
+import { DEFAULT_AGENT_CONFIG, MIN_CLI_VERSION, MODEL_PRICE_USD, agentConfigFor } from '@cl/agents';
 import { commitImport, createExport, exportFramework, listExports, previewImport, type ImportMode } from '@cl/bundle';
 import { DEFAULT_WORKSPACE_ID, getDb, t, verifyEventChain } from '@cl/db';
 import { defaultBlobStore, uploadLimits, SUPPORTED_EXTENSIONS } from '@cl/ingest';
 import {
-  DEFAULT_POLICY, acknowledge, createSourceSearch, datasetRows, deleteDataset, getSourceSearch, listDatasets, queueDataset, setAuto, addUserEvent, assertBlock, confirmJdSet, createRun, createSession, currentRun, getCandidate, getDetail, getSession, getState, getTrace, latestJdSet, listSessions, listUserEvents, liveCatalog, loadDocs, localActor, previewDocuments, removeUserEvent, requirePermission, runPlan, setCursor, startAttempt, workerStatus,
+  DEFAULT_POLICY, acknowledge, affectedFrameworks, createBatch, dictionaryQuality, listProduction, reviewsDue, runMetrics, aiToolEntry, listSurvey, setSurvey, attemptCalc, attemptCalls, attemptDetail, attemptTech, runLog, attemptTrace, blockAttempts, listRuns, pauseRun, resumeRun, runOverview, runUsage, scheduleRun, sessionEstimate, sessionOfCurrentRun, createSourceSearch, datasetRows, deleteDataset, getSourceSearch, listDatasets, queueDataset, setAuto, addUserEvent, assertBlock, confirmJdSet, createRun, createSession, currentRun, getCandidate, getDetail, getSession, getState, getTrace, latestJdSet, listSessions, listUserEvents, liveCatalog, loadDocs, localActor, previewDocuments, removeUserEvent, requirePermission, runPlan, setCursor, startAttempt, workerStatus,
   type DocInput, type Permission,
+  policyOf,
+  POLICIES,
+  BUDGET_FACTOR,
+  ANOMALY_INPUT_TOKENS,
+  ANOMALY_INPUT_TOKENS_BATCH,
+  BATCH_TASKS,
 } from '@cl/pipeline';
 import { commitCandidate, decideCandidate, decideLessons, getStop, listReleases, loadDictionary, raiseStop, reopenWorkspace, revertRelease, toDictView } from '@cl/registry';
 
@@ -30,12 +36,13 @@ on('GET', '/sessions/:id', 'VIEW', async ({ p }) => {
   const releases = await listReleases(db(), WS);
   const events = await listUserEvents(db(), p.id);
   return {
-    session: { id: s.id, name: s.name, role_title: s.roleTitle, purpose: s.purpose, context: s.context, family: s.family, industry: s.industry },
-    jd_set: jd ? { id: jd.jdSetId, revision: jd.revision, documents: docs.map((d) => ({ ref: d.ref, document_id: d.document_id, name: d.original_name, text: d.text, source_ref: d.source_ref, origin_group: d.origin_group ?? '', usage_note: d.usage_note ?? '', source_url: d.source_url ?? '', chars: Array.from(d.text).length, segments: d.segments.length })) } : null,
-    events: events.map((e) => ({ id: e.id, label: e.label, situation: e.situation, action: e.action, outcome: e.outcome, source_ref: e.sourceRef })),
-    run: run ? { id: run.id, run_no: run.runNo, status: run.status, jd_set_revision: (run.snapshot as any).jd_set.revision, base_version_label: (run.snapshot as any).base_version_label } : null,
+    session: { id: s.id, name: s.name, role_title: s.roleTitle, purpose: s.purpose, context: s.context, family: s.family, industry: s.industry, policy: { id: policyOf((s.charter as any)?.policy_id).id, rigor: policyOf((s.charter as any)?.policy_id).rigor ?? 'C', min_valid_jd: policyOf((s.charter as any)?.policy_id).min_valid_jd } },
+    jd_set: jd ? { id: jd.jdSetId, revision: jd.revision, documents: docs.map((d) => ({ ref: d.ref, document_id: d.document_id, name: d.original_name, text: d.text, source_ref: d.source_ref, origin_group: d.origin_group ?? '', posted_at: d.posted_at ?? '', usage_note: d.usage_note ?? '', source_url: d.source_url ?? '', chars: Array.from(d.text).length, segments: d.segments.length })) } : null,
+    events: events.map((e) => ({ id: e.id, label: e.label, situation: e.situation, action: e.action, outcome: e.outcome, source_ref: e.sourceRef, person_code: e.personCode, person_group: e.personGroup, kind: e.kind })),
+    ai_tool: await aiToolEntry(db()),
+    run: run ? { id: run.id, run_no: run.runNo, status: run.status, jd_set_revision: (run.snapshot as any).jd_set.revision, base_version_label: (run.snapshot as any).base_version_label, lessons_loaded: (run.snapshot as any).lessons_loaded ?? [], policy: (run.snapshot as any).policy?.id ?? null } : null,
     releases: releases.map((r) => ({ release_id: r.releaseId, version_label: r.versionLabel, decided_at: new Date(r.decidedAt).toISOString() })),
-    plan: runPlan(docs.length, DEFAULT_AGENT_CONFIG, events.length),
+    plan: runPlan(docs.length, agentConfigFor(policyOf((s.charter as any)?.policy_id).rigor), events.length),
     policy: DEFAULT_POLICY,
     limits: { ...uploadLimits(), extensions: SUPPORTED_EXTENSIONS },
     worker: await workerStatus(db()),
@@ -64,6 +71,24 @@ on('POST', '/sessions/:id/jd-sets/preview', 'OPERATE', async ({ req, p }) => {
   return previewDocuments(db(), blobs(), WS, inputs);
 });
 on('POST', '/sessions/:id/jd-sets', 'OPERATE', async ({ p, body, actor }) => confirmJdSet(db(), WS, p.id, (await body()).documents ?? [], actor.id));
+on('GET', '/sessions/:id/survey', 'VIEW', async ({ p }) => (await getSession(db(), WS, p.id), (await listSurvey(db(), p.id)).map((r) => ({ respondent_code: r.respondentCode, competency_label: r.competencyLabel, importance: r.importance, discrimination: r.discrimination, level: r.level }))));
+on('PUT', '/sessions/:id/survey', 'OPERATE', async ({ p, body, actor }) => setSurvey(db(), WS, p.id, await body(), actor.id));
+// Health for Coolify (run inside the container, so the basic auth of the proxy does not apply) and for the deploy job:
+// which commit is running and whether the database answers.
+on('GET', '/health', 'VIEW', async () => {
+  await db().execute(sql`select 1`);
+  return { ok: true, version: process.env.GIT_SHA ?? 'dev' };
+});
+on('GET', '/ai-tools', 'VIEW', async () => [await aiToolEntry(db())]);
+// shared settings of the workspace (read-only view): models by rigor, threshold sets, guards, prices, AI tool register
+on('GET', '/settings', 'VIEW', async () => ({
+  agents: { C: agentConfigFor('C'), AB: agentConfigFor('B') },
+  policies: Object.values(POLICIES),
+  guard: { budget_factor: BUDGET_FACTOR, anomaly_input_tokens: ANOMALY_INPUT_TOKENS, anomaly_input_tokens_batch: ANOMALY_INPUT_TOKENS_BATCH, batch_tasks: BATCH_TASKS },
+  prices: MODEL_PRICE_USD,
+  ai_tool: await aiToolEntry(db()),
+  worker: await workerStatus(db()),
+}));
 on('POST', '/sessions/:id/events', 'OPERATE', async ({ p, body, actor }) => addUserEvent(db(), WS, p.id, await body(), actor.id));
 on('DELETE', '/sessions/:id/events/:eid', 'OPERATE', async ({ p }) => (await removeUserEvent(db(), p.id, p.eid), { ok: true }));
 on('POST', '/sessions/:id/runs', 'OPERATE', async ({ p, body, actor }) => {
@@ -71,9 +96,30 @@ on('POST', '/sessions/:id/runs', 'OPERATE', async ({ p, body, actor }) => {
   const ws = await workerStatus(db());
   return createRun(db(), WS, p.id, { acknowledge_send: !!b.acknowledge_send, base_release_id: b.base_release_id, jd_set_revision: b.jd_set_revision, cli_version: ws.cliVersion }, actor.id);
 });
+// ---- P0: runs, stops, budget, usage ----
+on('GET', '/production', 'VIEW', () => listProduction(db(), WS));
+on('POST', '/production/batches', 'OPERATE', async ({ body, actor }) => createBatch(db(), WS, await body(), actor.id));
+on('GET', '/dictionary/quality', 'VIEW', () => dictionaryQuality(db(), WS));
+on('GET', '/reviews/due', 'VIEW', ({ q }) => reviewsDue(db(), WS, Number(q.get('days') ?? 30)));
+on('GET', '/runs/:id/metrics', 'VIEW', ({ p }) => runMetrics(db(), WS, p.id));
+on('GET', '/sessions/:id/affected', 'VIEW', ({ p }) => affectedFrameworks(db(), WS, p.id));
+on('GET', '/sessions/:id/estimate', 'VIEW', ({ p }) => sessionEstimate(db(), WS, p.id));
+on('GET', '/sessions/:id/runs', 'VIEW', async ({ p }) => (await getSession(db(), WS, p.id), listRuns(db(), WS, p.id)));
+on('GET', '/runs/:id/overview', 'VIEW', ({ p }) => runOverview(db(), WS, p.id));
+on('GET', '/runs/:id/usage', 'VIEW', ({ p }) => runUsage(db(), WS, p.id));
+on('GET', '/runs/:id/blocks/:block/attempts', 'VIEW', ({ p }) => blockAttempts(db(), WS, p.id, assertBlock(p.block)));
+on('GET', '/attempts/:id/trace', 'VIEW', ({ p, q }) => attemptTrace(db(), WS, p.id, q.get('since') ? Number(q.get('since')) : -1));
+on('GET', '/attempts/:id/calc', 'VIEW', ({ p, q }) => attemptCalc(db(), WS, p.id, q.get('substep') || undefined));
+on('GET', '/attempts/:id/calls', 'VIEW', ({ p, q }) => attemptCalls(db(), WS, p.id, { task: q.get('task'), status: q.get('status'), sort: (q.get('sort') as any) || undefined }));
+on('GET', '/attempts/:id/detail', 'VIEW', ({ p }) => attemptDetail(db(), WS, p.id));
+on('GET', '/runs/:id/log', 'VIEW', ({ p, q }) => runLog(db(), WS, p.id, q.get('filter') === 'stops' ? 'stops' : 'all'));
+on('GET', '/attempts/:id/tech', 'VIEW', ({ p }) => attemptTech(db(), WS, p.id));
+on('POST', '/runs/:id/resume', 'OPERATE', async ({ p, body, actor }) => resumeRun(db(), WS, await sessionOfCurrentRun(db(), WS, p.id), { actor: actor.id, acceptOver: !!(await body().catch(() => ({})))?.accept_over }));
+on('POST', '/runs/:id/pause', 'OPERATE', async ({ p, actor }) => pauseRun(db(), WS, await sessionOfCurrentRun(db(), WS, p.id), actor.id));
+on('POST', '/runs/:id/schedule', 'OPERATE', async ({ p, body, actor }) => scheduleRun(db(), WS, await sessionOfCurrentRun(db(), WS, p.id), actor.id, (await body().catch(() => ({})))?.at ?? null));
 on('POST', '/sessions/:id/auto', 'OPERATE', async ({ p, body, actor }) => setAuto(db(), WS, p.id, !!(await body()).on, actor.id));
 on('GET', '/sessions/:id/state', 'VIEW', ({ p }) => getState(db(), WS, p.id));
-on('GET', '/sessions/:id/catalog', 'VIEW', ({ p }) => liveCatalog(db(), WS, p.id));
+on('GET', '/sessions/:id/catalog', 'VIEW', ({ p, q }) => liveCatalog(db(), WS, p.id, q.get('release')));
 on('GET', '/sessions/:id/candidate', 'VIEW', ({ p }) => getCandidate(db(), WS, p.id));
 on('GET', '/sessions/:id/current/blocks/:block/detail', 'VIEW', ({ p }) => getDetail(db(), WS, p.id, assertBlock(p.block)));
 on('GET', '/sessions/:id/current/blocks/:block/trace', 'VIEW', ({ p }) => getTrace(db(), WS, p.id, assertBlock(p.block)));
@@ -101,7 +147,7 @@ on('POST', '/lessons/:id/decision', 'APPROVE', async ({ p, body, actor }) => {
 on('GET', '/workspace', 'VIEW', async ({ actor }) => ({ stop: await getStop(db(), WS), permissions: actor.permissions, actor: actor.id, event_chain: await verifyEventChain(db(), WS), worker: await workerStatus(db()) }));
 
 // ---- dictionary ----
-on('GET', '/releases', 'VIEW', async () => (await listReleases(db(), WS)).map((r) => ({ release_id: r.releaseId, seq: r.seq, version_label: r.versionLabel, parent_release_id: r.parentReleaseId, decided_by: r.decidedBy, decided_at: new Date(r.decidedAt).toISOString(), counts: (r.diff as any).counts, receipt_hash: r.receiptHash, reverts: r.reverts, origin: r.origin })));
+on('GET', '/releases', 'VIEW', async () => (await listReleases(db(), WS)).map((r) => ({ release_id: r.releaseId, seq: r.seq, version_label: r.versionLabel, parent_release_id: r.parentReleaseId, decided_by: r.decidedBy, decided_at: new Date(r.decidedAt).toISOString(), counts: (r.diff as any).counts, notes: (r.diff as any).notes ?? null, changes: ((r.diff as any).changes ?? []).filter((c: any) => c.entity === 'C' || c.entity === 'R'), receipt_hash: r.receiptHash, reverts: r.reverts, origin: r.origin })));
 on('GET', '/releases/:id/:part', 'VIEW', async ({ p }) => {
   const d = await loadDictionary(db(), WS, p.id);
   if (!d.releaseId) throw new AppError('NOT_FOUND', 'Không tìm thấy release.', 404);

@@ -23,7 +23,16 @@ export type EventType =
   | 'EXPORT_CREATED'
   | 'SESSION_CREATED'
   | 'JD_SET_CONFIRMED'
-  | 'RUN_CREATED';
+  | 'RUN_CREATED'
+  // P0 run tracking
+  | 'BLOCK_STARTED'
+  | 'BLOCK_DONE'
+  | 'BLOCK_STOPPED'
+  | 'CALLS_BLOCKED'
+  | 'RUN_STOPPED'
+  | 'RUN_SCHEDULED'
+  | 'RUN_WARNING'
+  | 'OVER_ACCEPTED';
 
 export interface NewEvent {
   workspaceId: string;

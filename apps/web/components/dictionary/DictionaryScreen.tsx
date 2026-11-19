@@ -1,5 +1,6 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '@/lib/live-source';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { ChangeItem, DictView, ReleaseHistoryEntry, SessionState } from '@cl/contract';
@@ -8,9 +9,10 @@ import { useSession } from '@/lib/session';
 import { useCatalog } from '@/lib/catalog';
 import CatalogExplorer from '@/components/catalog/CatalogExplorer';
 import GraphView from '@/components/knowledge/GraphView';
+import Releases from './Releases';
 import '@/components/knowledge/knowledge.css';
 
-type DictTab = 'network2d' | 'network3d' | 'matrix' | 'compare' | 'trace' | 'versions' | 'raw';
+type DictTab = 'network2d' | 'network3d' | 'matrix' | 'compare' | 'trace' | 'versions' | 'releases' | 'raw';
 const TABS: [DictTab, string][] = [
   ['network2d', 'Mạng 2D'],
   ['network3d', 'Mạng node 3D'],
@@ -18,6 +20,7 @@ const TABS: [DictTab, string][] = [
   ['compare', 'So sánh vai trò'],
   ['trace', 'Truy vết nguồn'],
   ['versions', 'Phiên bản/diff'],
+  ['releases', 'Bản phát hành'],
   ['raw', 'Dữ liệu chi tiết'],
 ];
 const CATALOG_VIEW = { network2d: 'network', network3d: '3d', matrix: 'matrix', compare: 'compare' } as const;
@@ -229,9 +232,16 @@ function Trace({ d, sessionId, initialCid, initialVersion }: { d: DictView; sess
   );
 }
 
-export default function DictionaryScreen() {
-  const { state, source, sessionId } = useSession();
-  const { catalog, origin, loading, showSeed, setShowSeed } = useCatalog();
+/** `workspace`: opened from the shared zone (/dictionary): the one dictionary of the workspace, not of a session. */
+export default function DictionaryScreen({ scope = 'session' }: { scope?: 'session' | 'workspace' }) {
+  const { state, source, sessionId, refresh } = useSession();
+  const [atRelease, setAtRelease] = useState<string | null>(null);
+  const [releaseList, setReleaseList] = useState<{ release_id: string; version_label: string }[]>([]);
+  useEffect(() => {
+    if (source.mode !== 'live') return;
+    api<{ release_id: string; version_label: string }[]>('/releases').then((r) => setReleaseList([...r].reverse())).catch(() => setReleaseList([]));
+  }, [source.mode, state?.dictionary.version]);
+  const { catalog, origin, loading, showSeed, setShowSeed } = useCatalog(atRelease);
   const params = useSearchParams();
   const startTab = params.get('dtab');
   const [tab, setTab] = useState<DictTab>(TABS.some(([t]) => t === startTab) ? (startTab as DictTab) : 'network2d');
@@ -257,18 +267,22 @@ export default function DictionaryScreen() {
       ? isExample
         ? 'THƯ VIỆN SEED NHIỀU VAI TRÒ · tách khỏi dữ liệu lượt chạy của phiên. Tất cả nguồn đều là dữ liệu tổng hợp.'
         : 'THƯ VIỆN SEED · chỉ để tham khảo — không phải từ điển của workspace và không được dùng làm bằng chứng.'
-      : 'TỪ ĐIỂN ĐÃ CÔNG BỐ CỦA WORKSPACE · bản đã khóa cho lượt đang chạy.'
+      : scope === 'workspace'
+        ? 'TỪ ĐIỂN ĐÃ CÔNG BỐ CỦA WORKSPACE · chọn bản ở "Xem tại bản"; mặc định là bản mới nhất.'
+        : 'TỪ ĐIỂN ĐÃ CÔNG BỐ CỦA WORKSPACE · bản đã khóa cho lượt đang chạy.'
     : demoOn
       ? 'BẢN MINH HỌA RIÊNG · mô phỏng trọn 2 lượt từ seed, không thay đổi lượt đang chạy. Tất cả nguồn đều là dữ liệu tổng hợp.'
       : isExample
         ? 'DỮ LIỆU LÕI ĐANG CÓ · cập nhật trực tiếp theo tiến trình mô phỏng. Tất cả nguồn đều là dữ liệu tổng hợp.'
-        : 'DỮ LIỆU LÕI CỦA PHIÊN · bản đã công bố và lịch sử phát hành của phiên này.';
+        : scope === 'workspace'
+          ? 'TỪ ĐIỂN CHUNG CỦA WORKSPACE · một từ điển duy nhất; mọi phiên đọc bản đã công bố và ghi bản mới vào đây.'
+          : 'DỮ LIỆU LÕI CỦA PHIÊN · bản đã công bố và lịch sử phát hành của phiên này.';
 
   return (
     <>
       <div className="section-head">
         <div>
-          <h2>Từ điển và tái sử dụng</h2>
+          {scope === 'workspace' ? null : <h2>Từ điển và tái sử dụng</h2>}
           <p>Một lần xây. Những lần sau kế thừa. W: nghề · C: năng lực · R: liên kết yêu cầu · V: bằng chứng · G: quản trị.</p>
         </div>
         <span className="pill" id="dict-version">
@@ -294,6 +308,20 @@ export default function DictionaryScreen() {
         )}
       </div>
 
+      {source.mode === 'live' && releaseList.length ? (
+        <label className="cl-row" style={{ margin: '6px 0' }}>
+          <span className="dim">Xem tại bản</span>
+          <select id="dict-at" value={atRelease ?? ''} onChange={(e) => setAtRelease(e.target.value || null)}>
+            <option value="">{scope === 'workspace' ? 'bản mới nhất' : 'bản của lượt hiện tại'}</option>
+            {releaseList.map((r) => (
+              <option key={r.release_id} value={r.release_id}>
+                {r.version_label}
+              </option>
+            ))}
+          </select>
+          <span className="dim">(áp cho Mạng 2D, Mạng 3D, Ma trận, So sánh vai trò)</span>
+        </label>
+      ) : null}
       <div className="kg-tabs" id="dict-tabs" role="tablist" aria-label="Góc nhìn từ điển">
         {TABS.map(([t, label]) => (
           <button key={t} type="button" role="tab" id={`dict-tab-${t}`} aria-selected={tab === t} aria-controls="dict-content" data-dict-tab={t} onClick={() => setTab(t)}>
@@ -337,6 +365,8 @@ export default function DictionaryScreen() {
           ) : (
             <CatalogExplorer catalog={catalog} view={CATALOG_VIEW[tab]} onViewChange={(v: (typeof CATALOG_VIEW)[CatalogTab]) => setTab(VIEW_TAB[v])} showTabs={false} />
           ))}
+
+        {tab === 'releases' && <Releases live={source.mode === 'live'} onChanged={() => void refresh()} />}
 
         {tab === 'trace' && <Trace key={demoOn ? 'demo' : 'live'} d={d} sessionId={sessionId} initialCid={params.get('c') ?? ''} initialVersion={params.get('v') ?? ''} />}
 

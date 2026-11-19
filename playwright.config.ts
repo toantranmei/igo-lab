@@ -8,7 +8,7 @@ import { defineConfig, devices } from '@playwright/test';
 const PORT = Number(process.env.E2E_PORT ?? 3111);
 const DB = 'postgres://cl_app:cl_app_dev@127.0.0.1:5570/competence_lab_test';
 const DATA_DIR = path.resolve(__dirname, '.e2e-data');
-const env = { DATABASE_URL: DB, DATA_DIR, CLAUDE_BIN: path.resolve(__dirname, 'tests/fake-claude/claude.mjs'), FAKE_CLAUDE_CONTROL: path.join(DATA_DIR, 'fake-mode'), AGENT_RETRY_DELAY_MS: '1', WORKER_POLL_MS: '150', WORKER_HEARTBEAT_MS: '1500', NEXT_TELEMETRY_DISABLED: '1' };
+const env = { DATABASE_URL: DB, DATA_DIR, CLAUDE_BIN: path.resolve(__dirname, 'tests/fake-claude/claude.mjs'), FAKE_CLAUDE_CONTROL: path.join(DATA_DIR, 'fake-mode'), AGENT_RETRY_DELAY_MS: '1', FAKE_CLAUDE_QUOTA_RESET_MIN: '1', CL_BREAKER_RESTORE: '0', WORKER_POLL_MS: '150', WORKER_HEARTBEAT_MS: '1500', NEXT_TELEMETRY_DISABLED: '1' };
 
 export default defineConfig({
   testDir: 'tests/e2e',
