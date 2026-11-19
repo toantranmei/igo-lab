@@ -46,13 +46,12 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 
 1. **Postgres**: + New → Database → PostgreSQL, **image `pgvector/pgvector:pg17`** (cần extension `vector`), database
    `competence_lab`. Bật Backups (lịch hằng ngày). Ghi lại *Postgres URL (internal)* của superuser.
-2. **Khởi tạo một lần**: mở Terminal của Postgres, `psql -U <superuser> -d competence_lab`, chạy
-   `docker/coolify-db-init.sql` sau khi thay mật khẩu (`openssl rand -hex 32`). Script tạo role `cl_app` (quyền tối
-   thiểu cho web và worker) và hai extension. Lần khởi động đầu, web chạy migration bằng superuser và cấp quyền cho
-   `cl_app`; bảng `event` chỉ được thêm, không được sửa hay xóa.
+2. **Không cần chạy SQL tay**: lần khởi động đầu, web chạy migration bằng superuser (`DATABASE_OWNER_URL`); trước đó script
+   tạo extension `vector`, `pg_trgm` và role `cl_app` (mật khẩu `CL_APP_PASSWORD`, `openssl rand -hex 32`), sau đó cấp
+   quyền bảng cho `cl_app`. Bảng `event` chỉ được thêm, không được sửa hay xóa.
 3. **Ổ dữ liệu dùng chung**: web lưu tệp JD tải lên, worker tải dataset; cả hai đọc cùng thư mục. Trên máy chủ:
-   `mkdir -p /data/coolify/igo-lab && chown 1000:1000 /data/coolify/igo-lab` (container chạy user `node`, uid 1000).
-   Ở **cả hai app**: Persistent Storage → Directory Mount, source `/data/coolify/igo-lab`, destination `/data`.
+   dùng một **Docker volume có tên** `igo-lab-data` gắn vào `/data` của **cả hai app** (Custom Docker Options:
+   `-v igo-lab-data:/data`). Volume mới nhận quyền của thư mục `/data` trong image (user `node`), không cần `chown`.
 4. **App `igo-lab-web`**: + New → Application → Docker Image `ghcr.io/toantranmei/igo-lab-web:main`.
    - Ports Exposes `3100`; Domains `https://igo-lab.toantranmei.com`.
    - Health check: bật, path `/api/health`, port `3100`, interval 10 s, start period 60 s (lần đầu còn chạy migration).
@@ -63,10 +62,11 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
      |---|---|
           | `DATABASE_URL` | `postgres://cl_app:<mật khẩu cl_app>@<host nội bộ của Postgres>:5432/competence_lab` |
      | `DATABASE_OWNER_URL` | URL superuser nội bộ, đường dẫn `/competence_lab` (chỉ web có biến này) |
+     | `CL_APP_PASSWORD` | mật khẩu của role `cl_app`, trùng với mật khẩu trong `DATABASE_URL` (chỉ web) |
      | `DATA_DIR` | `/data` |
      | `LOCAL_ACTOR_PERMISSIONS` | `VIEW,OPERATE,APPROVE,BACKUP_ADMIN` |
 5. **App `igo-lab-worker`**: Docker Image `ghcr.io/toantranmei/igo-lab-worker:main`, **không domain**, health check tắt,
-   cùng network, cùng Directory Mount (bước 3). Script deploy nhận vai theo image.
+   cùng network, cùng volume `igo-lab-data` (bước 3). Script deploy nhận vai theo image.
    **Chỉ một replica**: hàng đợi job dùng khóa trong DB, nhưng cầu dao hạn mức nằm trong bộ nhớ của tiến trình.
 
      | Biến | Giá trị |
@@ -105,7 +105,7 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 | Hiện tượng | Nguyên nhân hay gặp |
 |---|---|
 | Web không khỏe lần đầu | Migration lỗi: thiếu extension `vector` (Postgres không phải image pgvector) hoặc `DATABASE_OWNER_URL` sai |
-| `permission denied for table …` | Role `cl_app` tạo sau lần migration đầu: deploy lại web (migration cấp lại quyền mỗi lần khởi động) |
+| `permission denied for table …` | Thiếu `CL_APP_PASSWORD` ở web nên role `cl_app` không được tạo: đặt biến rồi deploy lại web |
 | Worker báo "Claude CLI chưa đăng nhập" | `CLAUDE_CODE_OAUTH_TOKEN` thiếu hoặc hết hạn: chạy lại `claude setup-token` |
-| Tải JD hoặc dataset lỗi ghi | Thư mục `/data/coolify/igo-lab` không thuộc uid 1000 |
+| Tải JD hoặc dataset lỗi ghi | `/data` không phải volume `igo-lab-data` (ví dụ bind mount thư mục của root) |
 | Job deploy báo `/api/health answered 401` | Thiếu secret `PRODUCTION_BASIC_AUTH` |
