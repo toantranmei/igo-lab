@@ -109,3 +109,16 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 | Worker báo "Claude CLI chưa đăng nhập" | `CLAUDE_CODE_OAUTH_TOKEN` thiếu hoặc hết hạn: chạy lại `claude setup-token` |
 | Tải JD hoặc dataset lỗi ghi | `/data` không phải volume `igo-lab-data` (ví dụ bind mount thư mục của root) |
 | Job deploy báo `/api/health answered 401` | Thiếu secret `PRODUCTION_BASIC_AUTH` |
+
+## Hiện trạng production (19/11/2026)
+
+- DNS Cloudflare (zone `toantranmei.com`): `A igo-lab → 84.247.146.53`, DNS only. Chứng chỉ Let's Encrypt do Traefik cấp.
+- Coolify `https://infra.meixlab.com`, project `igo-lab`, environment `production`:
+  - `igo-lab-db`: Postgres `pgvector/pgvector:pg17`, database `competence_lab`, superuser `cl_owner`, không public.
+  - `igo-lab-web`: image `ghcr.io/toantranmei/igo-lab-web:main`, domain `https://igo-lab.toantranmei.com`, health check
+    `/api/health` cổng 3100, HTTP Basic Auth (user `igo`), volume `igo-lab-data` → `/data`, tag `igo-lab`.
+  - `igo-lab-worker`: image `ghcr.io/toantranmei/igo-lab-worker:main`, không domain, không health check, volume
+    `igo-lab-data` → `/data`, tag `igo-lab`. Cần `CLAUDE_CODE_OAUTH_TOKEN` để gọi Claude.
+  - Token API `igo-lab CI deploy` (read + deploy, hết hạn 19/11/2027) là secret `COOLIFY_TOKEN` của repo.
+- GitHub `toantranmei/igo-lab` (private): secret `COOLIFY_TOKEN`, `PRODUCTION_BASIC_AUTH`; variable `COOLIFY_URL`,
+  `PRODUCTION_URL`. Push `main` là tự deploy.
