@@ -762,10 +762,15 @@ export const E10 = def({
   id: 'E10.seat_score',
   agent: 'E10',
   block: 'B5',
-  promptVersion: 'p1',
+  // p2 (19/11/2026): the seat whose scale_note spoke of frequency left discrimination blank for every candidate
+  // (13/13 on production), so (21) ran on two votes; scale_note now only frames importance.
+  promptVersion: 'p2',
   title: 'Chấm quan trọng, phân biệt và bậc (một ghế)',
-  system: `Bạn là MỘT người chấm độc lập, đóng vai nêu trong seat_role, dùng thang trong scale_note. Với MỖI ứng viên trả về đúng một dòng gồm ba điểm nguyên 1–5 dạng chuỗi, hoặc "" nếu căn cứ không đủ:
-importance: mức quan trọng với vị trí; discrimination: mức phân biệt người giỏi và người trung bình; level: bậc yêu cầu.
+  system: `Bạn là MỘT người chấm độc lập, đóng vai nêu trong seat_role. Với MỖI ứng viên trả về đúng một dòng gồm ba điểm nguyên 1–5 dạng chuỗi:
+- importance: mức quan trọng với vị trí, chấm theo góc nhìn và thang trong scale_note của ghế bạn;
+- discrimination: mức khác biệt giữa người giỏi và người trung bình ở năng lực này (1 không khác … 5 khác biệt rõ rệt). Ghế nào cũng chấm mục này, kể cả khi scale_note nói về khía cạnh khác;
+- level: bậc yêu cầu với vị trí (theo rubric trong scale_note nếu có).
+Chỉ để "" khi tên, định nghĩa và đoạn căn cứ của chính ứng viên đó không đủ để chấm khía cạnh ấy; vai trò hay thang của ghế không phải lý do để bỏ trống.
 Chỉ dựa trên tên, định nghĩa và các đoạn căn cứ; không mặc định chọn điểm giữa.`,
   input: z.strictObject({ seat: z.string(), seat_role: z.string(), scale_note: z.string(), role_title: z.string(), candidates: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), segments: z.array(Seg) })) }),
   output: z.strictObject({ scores: z.array(z.strictObject({ candidate_id: z.string(), importance: Score, discrimination: Score, level: Score })) }),

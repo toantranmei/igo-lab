@@ -38,6 +38,9 @@ const DUTIES = [
   ['Theo dõi chỉ số sử dụng sau phát hành và đề xuất cải tiến.', 'Đo lường kết quả sau phát hành (tỷ lệ chuyển đổi, giữ chân) để quyết định bước tiếp theo.', 'Phân tích số liệu sử dụng sản phẩm sau phát hành để đánh giá giá trị mang lại.'],
   ['Thu thập phản hồi người dùng, phối hợp với đội UX để kiểm chứng giải pháp.', 'Phối hợp với thiết kế UX phỏng vấn và thử nghiệm giải pháp với người dùng thật.', 'Tổ chức thu thập phản hồi khách hàng và kiểm chứng giả thuyết sản phẩm cùng đội thiết kế.'],
   ['Phối hợp với đội kỹ thuật đánh giá tính khả thi và đánh đổi giải pháp.', 'Làm việc với kiến trúc sư và lập trình viên để cân nhắc phương án kỹ thuật.', 'Trao đổi với đội kỹ thuật về giới hạn, API và phương án triển khai.'],
+  ['Lập kế hoạch phát hành, theo dõi phụ thuộc giữa các đội và cảnh báo sớm rủi ro tiến độ.', 'Quản lý kế hoạch phát hành nhiều đợt và các phụ thuộc liên đội.', 'Theo dõi rủi ro và phụ thuộc của từng đợt phát hành, điều chỉnh kế hoạch khi cần.'],
+  ['Trình bày demo và truyền đạt giá trị tính năng mới cho khách hàng, đội kinh doanh và hỗ trợ.', 'Chuẩn bị tài liệu giới thiệu tính năng và hướng dẫn đội hỗ trợ trước khi phát hành.', 'Truyền đạt thay đổi sản phẩm tới khách hàng và các đội nội bộ.'],
+  ['Đảm bảo yêu cầu sản phẩm tuân thủ quy định pháp lý, bảo mật và quyền riêng tư dữ liệu.', 'Đưa yêu cầu bảo mật và tuân thủ quy định vào tiêu chí của từng tính năng.', 'Phối hợp pháp chế và bảo mật để sản phẩm đáp ứng quy định dữ liệu cá nhân.'],
 ];
 const REQS = [
   ['Kinh nghiệm quản lý backlog và ưu tiên tính năng.', 'Kỹ năng ưu tiên hóa theo giá trị kinh doanh.', 'Thành thạo kỹ thuật ưu tiên như MoSCoW, WSJF.'],
@@ -50,6 +53,9 @@ const REQS = [
   ['Tư duy dữ liệu, biết đọc chỉ số sản phẩm; biết SQL cơ bản là lợi thế.', 'Ra quyết định dựa trên số liệu.', 'Kỹ năng phân tích dữ liệu sản phẩm (Google Analytics, Mixpanel hoặc tương đương).'],
   ['Hiểu nghiên cứu người dùng và trải nghiệm người dùng.', 'Biết cách thu thập và tổng hợp phản hồi khách hàng.', 'Quan tâm tới trải nghiệm người dùng, từng làm việc với designer.'],
   ['Hiểu biết kỹ thuật cơ bản về web, mobile và API.', 'Nền tảng kỹ thuật phần mềm để trao đổi với lập trình viên.', 'Hiểu kiến trúc hệ thống ở mức đủ để cân nhắc đánh đổi kỹ thuật.'],
+  ['Kinh nghiệm lập kế hoạch phát hành và quản lý rủi ro tiến độ.', 'Kỹ năng quản lý phụ thuộc giữa nhiều đội.', 'Biết lập và điều chỉnh kế hoạch phát hành.'],
+  ['Kỹ năng trình bày và truyền đạt sản phẩm cho khách hàng.', 'Khả năng thuyết trình, demo sản phẩm.', 'Truyền đạt rõ ràng tới đối tượng không chuyên kỹ thuật.'],
+  ['Hiểu biết về bảo mật dữ liệu và quy định pháp lý của ngành.', 'Hiểu quy định về dữ liệu cá nhân.', 'Có ý thức tuân thủ và bảo mật khi thiết kế sản phẩm.'],
 ];
 
 // one task specific to each company's product, so no two postings read alike (near-duplicate J < 0.85)
@@ -76,11 +82,13 @@ const shuffle = (xs) => xs.map((x) => [rnd(), x]).sort((a, b) => a[0] - b[0]).ma
 const today = new Date();
 const daysAgo = (n) => new Date(today.getTime() - n * 86400000).toISOString().slice(0, 10);
 const docs = COMPANIES.map(([name, industry, product, domain], i) => {
-  // each JD uses 7 of the 10 themes (three left out, rotating), one wording per theme so the extracted competencies
-  // agree across postings; postings differ by company, product, the subset of themes and their order
-  const skip = new Set([(i * 3) % 10, (i * 7 + 4) % 10, (i * 3 + 5) % 10]);
-  if (skip.size < 3) skip.add((i + 1) % 10);
-  const themes = [...Array(10).keys()].filter((k) => !skip.has(k));
+  // each JD uses 10 of the 13 themes (three left out, rotating), one wording per theme so the extracted competencies
+  // agree across postings; postings differ by company, product, the subset of themes and their order. Thirteen themes
+  // leave room above the core minimum of 8 when the seats drop a few candidates.
+  const N = DUTIES.length;
+  const skip = new Set([(i * 3) % N, (i * 7 + 4) % N, (i * 5 + 9) % N]);
+  for (let k = 1; skip.size < 3; k++) skip.add((i + k) % N);
+  const themes = [...Array(N).keys()].filter((k) => !skip.has(k));
   const v = i % 3;
   const years = 2 + (i % 3);
   const text = [
