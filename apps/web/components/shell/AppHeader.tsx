@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api } from '@/lib/live-source';
+import type { SessionListItem } from '@cl/contract';
 import { SessionPicker } from './Shell';
 import '@/components/run/run.css';
 
@@ -33,14 +34,33 @@ export function rememberSession(id: string) {
     /* storage is optional */
   }
 }
+/** The last session opened in this browser, once checked against the session list: a remembered id whose session is
+ * gone (deleted, or the database was restored from a backup) is forgotten instead of opening an empty screen. */
 export function useLastSession(): string {
   const [id, setId] = useState('');
   useEffect(() => {
+    let stored = '';
     try {
-      setId(localStorage.getItem(LAST) ?? '');
+      stored = localStorage.getItem(LAST) ?? '';
     } catch {
-      setId('');
+      /* storage is optional */
     }
+    if (!stored) return;
+    let live = true;
+    api<SessionListItem[]>('/sessions')
+      .then((xs) => {
+        if (!live) return;
+        if (xs.some((s) => s.id === stored)) return setId(stored);
+        try {
+          localStorage.removeItem(LAST);
+        } catch {
+          /* storage is optional */
+        }
+      })
+      .catch(() => live && setId(stored));
+    return () => {
+      live = false;
+    };
   }, []);
   return id;
 }
