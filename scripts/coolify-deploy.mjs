@@ -59,7 +59,9 @@ if (DRY) {
   process.exit(0);
 }
 
-async function deploy(app) {
+// A failed deployment is triggered once more before the run fails: image pulls from GHCR are sometimes reset mid-transfer
+// (seen on the first worker deploy, 19/11/2026), and Coolify keeps the previous container running meanwhile.
+async function deploy(app, attempt = 1) {
   const r = await coolify('POST', `/deploy?uuid=${app.uuid}`);
   const dep = r?.deployments?.[0]?.deployment_uuid;
   if (!dep) die(`${app.name} not queued`, JSON.stringify(r).slice(0, 300));
@@ -70,6 +72,11 @@ async function deploy(app) {
     if (d.status !== last) console.log(`${app.name}: ${d.status}`);
     last = d.status;
     if (d.status === 'finished') return;
+    if (d.status === 'failed' && attempt === 1) {
+      console.log(`::warning title=${app.name} deploy failed once::retrying (Coolify → ${app.name} → Deployments has the log)`);
+      await sleep(15000);
+      return deploy(app, 2);
+    }
     if (d.status === 'failed' || d.status === 'cancelled-by-user') die(`${app.name} deploy ${d.status}`, `see Coolify → ${app.name} → Deployments`);
     if (Date.now() - t0 > TIMEOUT_MS) die(`${app.name} deploy timed out`, `still ${d.status}`);
     await sleep(10000);
