@@ -1,5 +1,5 @@
 /**
- * node scripts/sample/po-full.mjs [--base=http://127.0.0.1:3100]
+ * node scripts/sample/po-full.mjs [--base=http://127.0.0.1:3100] [--session=<id>]   (BASIC_AUTH=user:password behind basic auth)
  *
  * Creates a demo session "Phiên đầy đủ · Product Owner" (SOP level C) with 15 Product Owner JDs written for the demo:
  * fictional companies across 15 industries, posted within the last 6 months, each with a source URL, sharing the same
@@ -97,7 +97,9 @@ const docs = COMPANIES.map(([name, industry, product, domain], i) => {
 });
 
 async function call(path, init) {
-  const r = await fetch(`${base}/api${path}`, { ...init, headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) } });
+  // BASIC_AUTH=user:password for a site behind basic auth (production)
+  const auth = process.env.BASIC_AUTH ? { authorization: `Basic ${Buffer.from(process.env.BASIC_AUTH).toString('base64')}` } : {};
+  const r = await fetch(`${base}/api${path}`, { ...init, headers: { 'content-type': 'application/json', ...auth, ...(init?.headers ?? {}) } });
   const body = await r.json().catch(() => null);
   if (!r.ok) throw new Error(`${path}: ${r.status} ${JSON.stringify(body)}`);
   return body;

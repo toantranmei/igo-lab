@@ -106,7 +106,7 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 |---|---|
 | Web không khỏe lần đầu | Migration lỗi: thiếu extension `vector` (Postgres không phải image pgvector) hoặc `DATABASE_OWNER_URL` sai |
 | `permission denied for table …` | Thiếu `CL_APP_PASSWORD` ở web nên role `cl_app` không được tạo: đặt biến rồi deploy lại web |
-| Worker báo "Claude CLI chưa đăng nhập" | `CLAUDE_CODE_OAUTH_TOKEN` thiếu hoặc hết hạn: chạy lại `claude setup-token` |
+| Worker báo "Claude CLI chưa đăng nhập" | `CLAUDE_CODE_OAUTH_TOKEN` thiếu hoặc hết hạn: chạy lại `claude setup-token`. Token dán từ terminal hay dính dấu cách ở chỗ xuống dòng; worker tự bỏ khoảng trắng, nhưng nên dán lại liền một dòng |
 | Tải JD hoặc dataset lỗi ghi | `/data` không phải volume `igo-lab-data` (ví dụ bind mount thư mục của root) |
 | Job deploy báo `/api/health answered 401` | Thiếu secret `PRODUCTION_BASIC_AUTH` |
 

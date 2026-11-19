@@ -160,6 +160,9 @@ export class ClaudeCliRunner {
     const env = { ...process.env };
     delete env.ANTHROPIC_API_KEY;
     delete env.ANTHROPIC_AUTH_TOKEN;
+    // A token copied from the wrapped output of `claude setup-token` often carries spaces or line breaks; the CLI then
+    // answers "Not logged in" without calling the API (seen on production, 19/11/2026). Tokens contain no whitespace.
+    if (env.CLAUDE_CODE_OAUTH_TOKEN) env.CLAUDE_CODE_OAUTH_TOKEN = env.CLAUDE_CODE_OAUTH_TOKEN.replace(/\s+/g, '');
     return env;
   }
 
