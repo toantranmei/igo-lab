@@ -1,6 +1,7 @@
 name: CI
 
-# push main → one image (web + worker, ROLE picks) on GHCR → Coolify deploys the apps tagged `igo-lab` (docs/DEPLOY.md).
+# push main → two images (web, worker; targets of docker/Dockerfile) on GHCR → Coolify deploys the apps tagged `igo-lab`
+# (docs/DEPLOY.md).
 # Tests run on the dev machine before the push; CI only builds and deploys.
 on:
   push:
@@ -16,6 +17,11 @@ permissions:
 
 jobs:
   image:
+    name: image (${{ matrix.target }})
+    strategy:
+      fail-fast: true
+      matrix:
+        target: [web, worker]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -39,7 +45,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/toantranmei/igo-lab
+          images: ghcr.io/toantranmei/igo-lab-${{ matrix.target }}
           tags: |
             type=raw,value=${{ github.sha }}
             type=sha,prefix=sha-,format=short
@@ -47,20 +53,20 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=igo-lab
+            org.opencontainers.image.title=igo-lab-${{ matrix.target }}
       - uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
-          target: runner
+          target: ${{ matrix.target }}
           platforms: linux/amd64
           push: true
           build-args: |
             GIT_SHA=${{ github.sha }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}
 
   deploy:
     needs: [image]

@@ -5,5 +5,7 @@ const config: NextConfig = {
   serverExternalPackages: ['postgres', 'mammoth', 'unpdf'],
   outputFileTracingRoot: require('node:path').join(__dirname, '../..'),
   devIndicators: false,
+  // the image ships .next/standalone (only the files the server needs), not the whole node_modules
+  output: 'standalone',
 };
 export default config;

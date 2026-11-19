@@ -5,15 +5,15 @@
  *   COOLIFY_URL=https://coolify.example.com COOLIFY_TOKEN=… PRODUCTION_URL=https://igo-lab.toantranmei.com \
  *   PRODUCTION_BASIC_AUTH=user:pass GITHUB_SHA=<sha> node scripts/coolify-deploy.mjs [--dry-run]
  *
- * Applications carrying the Coolify tag `igo-lab` (COOLIFY_TAG) and pulling ghcr.io/toantranmei/igo-lab are deployed in
- * order: the web first (ROLE=web applies migrations on start), waited for until its Coolify deployment finishes and
+ * Applications carrying the Coolify tag `igo-lab` (COOLIFY_TAG) are matched by image (ghcr.io/toantranmei/igo-lab-web,
+ * ghcr.io/toantranmei/igo-lab-worker) and deployed in order: the web first (ROLE=web applies migrations on start), waited for until its Coolify deployment finishes and
  * PRODUCTION_URL/api/health reports GITHUB_SHA; then the worker. A failed or stuck step stops the run, so a worker is
  * never newer than the schema.
  */
 const URL_ = (process.env.COOLIFY_URL ?? '').replace(/\/+$/, '');
 const TOKEN = process.env.COOLIFY_TOKEN ?? '';
 const TAG = process.env.COOLIFY_TAG ?? 'igo-lab';
-const IMAGE = 'ghcr.io/toantranmei/igo-lab';
+const IMAGES = { web: 'ghcr.io/toantranmei/igo-lab-web', worker: 'ghcr.io/toantranmei/igo-lab-worker' };
 const SHA = process.env.GITHUB_SHA ?? '';
 const PROD = (process.env.PRODUCTION_URL ?? '').replace(/\/+$/, '');
 const BASIC = process.env.PRODUCTION_BASIC_AUTH ?? '';
@@ -41,16 +41,18 @@ async function coolify(method, path) {
 
 if (!URL_ || !TOKEN) die('Missing configuration', 'COOLIFY_URL and COOLIFY_TOKEN are required');
 const apps = (await coolify('GET', `/applications?tag=${encodeURIComponent(TAG)}`)) ?? [];
-const ours = apps.filter((a) => String(a.docker_registry_image_name ?? '').toLowerCase().replace(/:.*$/, '') === IMAGE);
-const roleOf = (a) => (/worker/i.test(a.name ?? '') ? 'worker' : 'web');
+const imageOf = (a) => String(a.docker_registry_image_name ?? '').toLowerCase().replace(/:.*$/, '');
+const roleOf = (a) => Object.keys(IMAGES).find((k) => IMAGES[k] === imageOf(a));
+const ours = apps.filter((a) => roleOf(a));
 const web = ours.filter((a) => roleOf(a) === 'web');
 const worker = ours.filter((a) => roleOf(a) === 'worker');
 console.log(`apps with tag ${TAG}: ${ours.map((a) => `${a.name} (${roleOf(a)}, tag ${a.docker_registry_image_tag ?? '-'})`).join(', ') || 'none'}`);
 if (!ours.length) {
-  console.log(`::notice title=Nothing to deploy::no Coolify application tagged ${TAG} pulls ${IMAGE}`);
+  console.log(`::notice title=Nothing to deploy::no Coolify application tagged ${TAG} pulls ${Object.values(IMAGES).join(' or ')}`);
   process.exit(0);
 }
-if (web.length !== 1) die('Web app', `expected exactly one web app (name without "worker"), found ${web.length}`);
+if (web.length !== 1) die('Web app', `expected exactly one app pulling ${IMAGES.web}, found ${web.length}`);
+if (worker.length > 1) die('Worker app', `expected at most one app pulling ${IMAGES.worker} (the worker runs as a single replica), found ${worker.length}`);
 for (const a of ours) if ((a.docker_registry_image_tag ?? 'main') !== 'main') die('Pinned image tag', `${a.name} pulls tag ${a.docker_registry_image_tag}; set it back to main`);
 if (DRY) {
   console.log(`dry run: would deploy ${web[0].name}, then ${worker.map((a) => a.name).join(', ') || '(no worker)'}`);

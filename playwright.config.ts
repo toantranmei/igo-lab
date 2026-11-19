@@ -24,6 +24,7 @@ export default defineConfig({
     { command: `pnpm --filter @cl/web exec next build && pnpm --filter @cl/web exec next start -p ${PORT} -H 127.0.0.1`, url: `http://127.0.0.1:${PORT}/api/limits`, reuseExistingServer: false, timeout: 300_000, env: { ...process.env, ...env } as Record<string, string> },
     // same build, but the local actor may only view: used by the permission checks of A09
     { command: `pnpm --filter @cl/web exec next start -p ${PORT + 1} -H 127.0.0.1`, url: `http://127.0.0.1:${PORT + 1}/api/limits`, reuseExistingServer: false, timeout: 60_000, env: { ...process.env, ...env, LOCAL_ACTOR_PERMISSIONS: 'VIEW' } as Record<string, string> },
-    { command: 'pnpm --filter @cl/worker start', wait: { stdout: /\[worker\]/ }, reuseExistingServer: false, timeout: 60_000, stdout: 'pipe', env: { ...process.env, ...env } as Record<string, string> },
+    // E2E_WORKER=bundle runs the worker as shipped in the image (esbuild bundle, no tsx, no node_modules)
+    { command: process.env.E2E_WORKER === 'bundle' ? 'node scripts/build-worker.mjs && node dist/worker/main.mjs' : 'pnpm --filter @cl/worker start', wait: { stdout: /\[worker\]/ }, reuseExistingServer: false, timeout: 60_000, stdout: 'pipe', env: { ...process.env, ...env } as Record<string, string> },
   ],
 });

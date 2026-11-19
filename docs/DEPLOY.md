@@ -8,14 +8,22 @@ git push main
    │
    ▼
 GitHub Actions (.github/workflows/ci.yml)
-   ├─ image    docker build (docker/Dockerfile, target runner) → ghcr.io/toantranmei/igo-lab:<sha> + sha-<7> + main
-   └─ deploy   scripts/coolify-deploy.mjs, API Coolify, các app có tag `igo-lab`:
-        1. igo-lab-web     (ROLE=web: chạy migration rồi phục vụ :3100) → chờ /api/health báo đúng sha
-        2. igo-lab-worker  (ROLE=worker: gọi Claude CLI)                 → chờ deployment xong
+   ├─ image (web)     docker build --target web    → ghcr.io/toantranmei/igo-lab-web:<sha> + sha-<7> + main
+   ├─ image (worker)  docker build --target worker → ghcr.io/toantranmei/igo-lab-worker:<sha> + sha-<7> + main
+   └─ deploy          scripts/coolify-deploy.mjs, API Coolify, các app có tag `igo-lab`, nhận theo image:
+        1. web     (chạy migration rồi phục vụ :3100) → chờ /api/health báo đúng sha
+        2. worker  (gọi Claude CLI)                   → chờ deployment xong
 ```
 
-Một image cho cả hai tiến trình; biến `ROLE` chọn vai (`docker/start.sh`). Web luôn lên trước worker, nên worker
-không bao giờ chạy trên schema cũ.
+Hai image từ một Dockerfile (`docker/Dockerfile`), chỉ chứa thứ cần khi chạy:
+
+| Image | Gồm | Không có |
+|---|---|---|
+| `igo-lab-web` | Next standalone (chỉ các file server cần, ≈ 46 MB), `migrate.mjs`, migration SQL, dữ liệu danh mục nghề | `node_modules` đầy đủ, pnpm, Claude CLI |
+| `igo-lab-worker` | `main.mjs` (worker đóng gói bằng esbuild, một file), Claude CLI, dữ liệu danh mục nghề | `node_modules`, pnpm, tsx, Next |
+
+Công cụ build, dependency dev và kho pnpm chỉ nằm ở giai đoạn `build`. Web luôn lên trước worker, nên worker không bao
+giờ chạy trên schema cũ.
 
 ## Cấu hình một lần
 
@@ -45,7 +53,7 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 3. **Ổ dữ liệu dùng chung**: web lưu tệp JD tải lên, worker tải dataset; cả hai đọc cùng thư mục. Trên máy chủ:
    `mkdir -p /data/coolify/igo-lab && chown 1000:1000 /data/coolify/igo-lab` (container chạy user `node`, uid 1000).
    Ở **cả hai app**: Persistent Storage → Directory Mount, source `/data/coolify/igo-lab`, destination `/data`.
-4. **App `igo-lab-web`**: + New → Application → Docker Image `ghcr.io/toantranmei/igo-lab:main`.
+4. **App `igo-lab-web`**: + New → Application → Docker Image `ghcr.io/toantranmei/igo-lab-web:main`.
    - Ports Exposes `3100`; Domains `https://igo-lab.toantranmei.com`.
    - Health check: bật, path `/api/health`, port `3100`, interval 10 s, start period 60 s (lần đầu còn chạy migration).
    - Connect to predefined network: bật, cùng network với Postgres.
@@ -53,19 +61,17 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 
      | Biến | Giá trị |
      |---|---|
-     | `ROLE` | `web` |
-     | `DATABASE_URL` | `postgres://cl_app:<mật khẩu cl_app>@<host nội bộ của Postgres>:5432/competence_lab` |
+          | `DATABASE_URL` | `postgres://cl_app:<mật khẩu cl_app>@<host nội bộ của Postgres>:5432/competence_lab` |
      | `DATABASE_OWNER_URL` | URL superuser nội bộ, đường dẫn `/competence_lab` (chỉ web có biến này) |
      | `DATA_DIR` | `/data` |
      | `LOCAL_ACTOR_PERMISSIONS` | `VIEW,OPERATE,APPROVE,BACKUP_ADMIN` |
-5. **App `igo-lab-worker`**: Docker Image `ghcr.io/toantranmei/igo-lab:main`, **không domain**, health check tắt,
-   cùng network, cùng Directory Mount (bước 3). Tên app phải chứa chữ `worker` (script deploy nhận vai theo tên).
+5. **App `igo-lab-worker`**: Docker Image `ghcr.io/toantranmei/igo-lab-worker:main`, **không domain**, health check tắt,
+   cùng network, cùng Directory Mount (bước 3). Script deploy nhận vai theo image.
    **Chỉ một replica**: hàng đợi job dùng khóa trong DB, nhưng cầu dao hạn mức nằm trong bộ nhớ của tiến trình.
 
      | Biến | Giá trị |
      |---|---|
-     | `ROLE` | `worker` |
-     | `DATABASE_URL` | như web |
+          | `DATABASE_URL` | như web |
      | `DATA_DIR` | `/data` |
      | `CLAUDE_CODE_OAUTH_TOKEN` | token từ `claude setup-token` (chạy trên máy của bạn, dùng gói Claude đang đăng nhập; hiệu lực khoảng 1 năm) |
 6. **Basic auth** (chưa có đăng nhập trong app; quyết định 19/11/2026): web → Configuration → bật *HTTP Basic
@@ -82,7 +88,7 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
 8. **Token cho CI**: Settings → Advanced → bật API Access; Keys & Tokens → API token quyền `read` + `deploy` → secret
    `COOLIFY_TOKEN` của repo.
 9. **GHCR**: máy chủ đã `docker login ghcr.io -u toantranmei` cho ai-factory; token `read:packages` đọc được mọi package
-   private của tài khoản, kể cả `igo-lab`. Hết hạn thì chạy lại (Coolify → Terminal → máy chủ).
+   private của tài khoản, kể cả `igo-lab-web` và `igo-lab-worker`. Hết hạn thì chạy lại (Coolify → Terminal → máy chủ).
 
 ## Hằng ngày
 
@@ -92,7 +98,7 @@ Thiếu `COOLIFY_TOKEN` hoặc `COOLIFY_URL` thì job `deploy` bỏ qua (xanh), 
   bản cũ chạy được trên schema mới nếu không có migration xóa cột. Rollback xong đặt lại tag `main`, nếu không job
   deploy dừng với `Pinned image tag`.
 - **Log**: Coolify → app → Logs. Worker in `[worker] Claude CLI … sẵn sàng` khi đăng nhập được.
-- **Chạy image trên máy**: `docker build -f docker/Dockerfile --target runner -t igo-lab:local .`
+- **Chạy image trên máy**: `docker build -f docker/Dockerfile --target web -t igo-lab-web:local .` (worker: `--target worker`).
 
 ## Lỗi thường gặp
 

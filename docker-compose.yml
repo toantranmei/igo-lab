@@ -18,8 +18,8 @@ services:
       retries: 30
 
   migrate:
-    build: { context: ., dockerfile: docker/Dockerfile, target: runner }
-    command: ["pnpm", "db:migrate"]
+    build: { context: ., dockerfile: docker/Dockerfile, target: web }
+    command: ["node", "migrate.mjs"]
     environment:
       DATABASE_OWNER_URL: postgres://cl_owner:${POSTGRES_OWNER_PASSWORD:-cl_owner_dev}@postgres:5432/competence_lab
       CL_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:-cl_app_dev}
@@ -28,7 +28,7 @@ services:
     profiles: ["app"]
 
   web:
-    build: { context: ., dockerfile: docker/Dockerfile, target: runner }
+    build: { context: ., dockerfile: docker/Dockerfile, target: web }
     environment:
       ROLE: web
       DATABASE_URL: postgres://cl_app:${POSTGRES_APP_PASSWORD:-cl_app_dev}@postgres:5432/competence_lab
@@ -45,7 +45,7 @@ services:
     profiles: ["app"]
 
   worker:
-    build: { context: ., dockerfile: docker/Dockerfile, target: runner }
+    build: { context: ., dockerfile: docker/Dockerfile, target: worker }
     environment:
       ROLE: worker
       DATABASE_URL: postgres://cl_app:${POSTGRES_APP_PASSWORD:-cl_app_dev}@postgres:5432/competence_lab
