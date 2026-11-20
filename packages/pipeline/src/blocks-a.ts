@@ -9,6 +9,9 @@ import { anchorOccupation, catalogLines, externalTasks, loadReference } from './
 import { ageMonths, DATASET_UNDATED_D, isDatasetSource, MAX_JD_AGE_MONTHS, tooOld, cohenKappa, evidenceWeight, g1, lensL, lensM, libraryCoverage, marketScore, recencyD, reliabilityE, seedOf, seededShuffle, sourceRank, type Rank } from './formulas';
 import { TraceBuilder, deviationGate, gate, pct, policyRef, ratio, round4, type BlockCtx, type BlockResult, type LoadedDoc, type SnapSegment } from './types';
 
+/** E4M passes in B3: the second one runs on the result of the first and is skipped when the first merged nothing. */
+const E4M_ROUNDS = 2;
+
 export const norm = (s: string) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
 export const short = (s: string, n = 90) => (Array.from(s).length > n ? Array.from(s).slice(0, n - 1).join('') + '…' : s);
 
@@ -587,12 +590,15 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
     }
     // E4 merges only clusters of the same meaning, inside one batch. E4M (Sonnet) then sees every cluster at once and
     // merges to the grain of a framework competency: skill-level variants of one competency, wherever they fell.
-    if (index.size > 1) {
+    // A second pass runs on the result of the first: merging A into B can make B and C visibly the same competency
+    // (Project Manager, 20/11/2026: three "rủi ro" clusters left after one pass). It stops when a pass merges nothing.
+    const jdCount = (c: { members: string[] }) => new Set(c.members.map((id) => byId.get(id)?.doc)).size;
+    const mergeSourcesE4M: TraceSource[] = [];
+    for (let round = 1; round <= E4M_ROUNDS && index.size > 1; round++) {
       const heads = [...index.values()].sort((a, b) => norm(canonOf(a).label).localeCompare(norm(canonOf(b).label)));
       // compact (name + 80 characters of definition + JD count) in ONE call (≈ 260 clusters) so every pair can meet: split into
       // several calls, variants of one competency on both sides of a split stayed apart (Project Manager, 20/11/2026)
       const passes = pack(heads, (c) => canonOf(c).label.length + Math.min(80, canonOf(c).definition.length) + 40, Number(process.env.AGENT_MERGE_CHARS || 34000));
-      const jdCount = (c: (typeof heads)[number]) => new Set(c.members.map((id) => byId.get(id)?.doc)).size;
       const merged = await Promise.all(
         passes.map(async (part) => {
           const ids = new ShortIds();
@@ -610,10 +616,12 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
           // the head keeps its own dictionary decision; O*NET support is pooled
           for (const c of cids) if (c !== head) (index.get(head)!.members.push(...index.get(c)!.members), index.delete(c), extOf.set(head, new Set([...(extOf.get(head) ?? []), ...(extOf.get(c) ?? [])])), matchOf.has(head) || !matchOf.has(c) ? null : matchOf.set(head, matchOf.get(c)!));
         }
-      const mergeSource = mergeSources('E4M.granularity_merge', merged.map((x) => x.r.source));
-      clusterSource = mergeSources('E4.candidate_review', [...results.map((x) => x.r.source), mergeSource]);
-      tb.beat('READ', 'Gộp về mức năng lực của khung (E4M)', { formula: 'cụm = cụm − gộp; một lượt nhìn toàn bộ danh sách cụm', substitution: `${heads.length} cụm → ${index.size} cụm (${n} lần gộp)`, source: mergeSource, explanation: 'E4 chỉ gộp cụm cùng nội hàm trong một lô; lượt này gộp các biến thể chi tiết (kỹ năng con, công cụ, ngành) của cùng một năng lực, ở mọi lô.' });
+      const roundSource = mergeSources('E4M.granularity_merge', merged.map((x) => x.r.source));
+      mergeSourcesE4M.push(roundSource);
+      tb.beat('READ', `Gộp về mức năng lực của khung (E4M, lượt ${round})`, { formula: 'cụm = cụm − gộp; một lượt nhìn toàn bộ danh sách cụm', substitution: `${heads.length} cụm → ${index.size} cụm (${n} lần gộp)`, source: roundSource, explanation: 'E4 chỉ gộp cụm cùng nội hàm trong một lô; lượt này gộp các biến thể chi tiết (kỹ năng con, công cụ, ngành) của cùng một năng lực, ở mọi lô.' });
+      if (!n) break;
     }
+    if (mergeSourcesE4M.length) clusterSource = mergeSources('E4.candidate_review', [...results.map((x) => x.r.source), ...mergeSourcesE4M]);
     cls = [...index.values()];
   }
   const pre = cls.map((c) => {
