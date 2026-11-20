@@ -24,7 +24,7 @@ const SIZE = { jd: 1600, task: 80, cand: 200, comp: 165, ind: 120, compBrief: 60
  * run (19/11/2026, 4 valid JD, 11 core, 60 indicators): E6 ≈ 890 per competency, E7 ≈ 140 per indicator vote,
  * E8 ≈ 1 800 per call.
  */
-const OUT = { jd: 900, cluster: 25, row: 40, compInd: 890, vote: 140, audit: 1800, score: 20 };
+const OUT = { jd: 900, cluster: 25, row: 40, compInd: 1250, vote: 140, audit: 1800, score: 20 };
 /** Shape of the data per valid JD: 856 merged tasks, 566 competency groups for 131 valid JDs. */
 const PER_JD = { valid: 0.75, rawTasks: 9.5, tasks: 6.5, candidates: 8, groups: 4.3 };
 const BATCH = 7000;
@@ -122,7 +122,7 @@ export function estimateRun(b: EstimateBasis, config: AgentConfig = DEFAULT_AGEN
     B4: [t('T7', events, 2000, 300)],
     B5: [t('E5', e5, Math.min(4500, selected * SIZE.comp) + 25 * 120, 25 * OUT.row), t('E10', seats * Math.max(1, Math.ceil((kept * 500) / BATCH)), Math.min(BATCH, kept * 500), kept * OUT.score)],
     // E6: the rewrite round adds calls but only rewrites failed indicators (≈ 10% of the output, P1 run)
-    B6: [t('E6', Math.ceil(e6 * 1.3), Math.min(BATCH, selected * SIZE.compBrief), Math.ceil((selected * OUT.compInd * 1.1) / Math.ceil(e6 * 1.3))), t('E7', seats * 2, selected * 3 * SIZE.ind + selected * SIZE.comp, Math.ceil((selected * 4 * OUT.vote) / 2))],
+    B6: [t('E6', Math.ceil(e6 * 1.3), Math.min(BATCH, selected * SIZE.compBrief), Math.ceil((selected * OUT.compInd * 1.1) / Math.ceil(e6 * 1.3))), t('E7', seats * 2, selected * 3 * 4 * SIZE.ind / 3 + selected * SIZE.comp, Math.ceil((selected * 5 * OUT.vote) / 2))],
     B7: [t('E8', e8, Math.min(BATCH, Math.ceil(auditChars / e8)), OUT.audit)],
     B8: [],
     FAST: [],

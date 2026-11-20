@@ -610,9 +610,11 @@ export const E6 = def({
   id: 'E6.indicator_write',
   agent: 'E6',
   block: 'B6',
-  promptVersion: 'p3',
+  // p4 (20/11/2026): four per level. With two, one indicator read back at the wrong level left the level at 1 < 2 (29):
+  // 5 of 9 Software Engineer competencies stopped at B6. (29) keeps at most 4 passing ones, so four leave room.
+  promptVersion: 'p4',
   title: 'Soạn chỉ báo hành vi ở bậc 1, 3, 5 cho nhiều năng lực',
-  system: `Với MỖI năng lực trong "competencies" trả về đúng một dòng, gồm ba bậc "1", "3", "5"; mỗi bậc 2–4 CHỈ BÁO HÀNH VI quan sát được trong bối cảnh vị trí.
+  system: `Với MỖI năng lực trong "competencies" trả về đúng một dòng, gồm ba bậc "1", "3", "5"; mỗi bậc viết 4 CHỈ BÁO HÀNH VI quan sát được trong bối cảnh vị trí (ít nhất 3 nếu căn cứ không đủ cho 4); các chỉ báo cùng bậc khác nhau về tình huống hoặc hành vi, và đều mang rõ dấu hiệu của bậc đó.
 - Bậc 1: làm được khi có hướng dẫn, việc quen thuộc. Bậc 3: tự làm độc lập, việc thường gặp. Bậc 5: làm được ở việc mới, phức tạp, và dẫn dắt người khác. Bậc cao phải đòi hỏi hơn bậc thấp.
 - Mỗi chỉ báo một câu theo mẫu "Khi <tình huống>, <động từ quan sát được> <đối tượng> nhằm <kết quả kiểm được>.", tối đa 35 từ, MỘT hành vi, của chính cá nhân. Không dùng "hiểu", "nắm", "có khả năng", "biết", không mô tả tính cách.
 - Chỉ báo phải phân biệt được năng lực này với các năng lực khác trong danh sách.
