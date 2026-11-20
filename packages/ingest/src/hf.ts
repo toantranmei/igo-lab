@@ -26,7 +26,8 @@ export function parseDatasetId(input: string): string {
 
 const TITLE = ['job_title', 'title', 'position', 'job_name', 'job_position'];
 const ORG = ['company_name', 'company', 'employer', 'organization'];
-const DATE = ['posted_date', 'date_posted', 'post_date', 'posting_date', 'published_at', 'publish_date', 'created_at', 'created_date', 'date'];
+// a bare `year` column comes last: a full date wins when the dataset has both
+const DATE = ['posted_date', 'date_posted', 'post_date', 'posting_date', 'published_at', 'publish_date', 'created_at', 'created_date', 'date', 'year', 'posted_year'];
 /** Columns that make up the JD text, in reading order, with the heading shown in the assembled document. */
 const BODY: [RegExp, string][] = [
   [/^(job_)?description$|^responsibilit|^duties$/i, 'Mô tả công việc'],
@@ -36,6 +37,7 @@ const BODY: [RegExp, string][] = [
   [/^soft_skills?$/i, 'Kỹ năng mềm'],
   [/^experience(_required|_level)?$/i, 'Kinh nghiệm'],
   [/^languages?(_required)?$/i, 'Ngoại ngữ'],
+  [/^(job_)?industry$/i, 'Ngành'],
 ];
 export interface HfColumns { title: string; org: string | null; body: { column: string; heading: string }[]; date?: string | null }
 export function detectColumns(names: string[]): HfColumns {
@@ -59,6 +61,9 @@ export function rowToJd(row: Record<string, unknown>, cols: HfColumns) {
 /** A dataset date (string, number or Date) as YYYY-MM-DD, or null when it cannot be read. */
 export function toIsoDate(v: unknown): string | null {
   if (v === null || v === undefined || v === '') return null;
+  // a posting year alone (2026 or "2026") reads as 1 January of that year: the oldest date it can mean, so recency
+  // is never overstated and a posting is never kept past the 24-month limit because of the missing month
+  if (/^\s*(19|20)\d\d\s*$/.test(String(v))) return `${String(v).trim()}-01-01`;
   const d = v instanceof Date ? v : typeof v === 'number' || typeof v === 'bigint' ? new Date(Number(v) > 1e11 ? Number(v) : Number(v) * 1000) : new Date(String(v).trim());
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 }

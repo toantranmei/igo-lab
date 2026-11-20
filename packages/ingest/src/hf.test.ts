@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectColumns, parseDatasetId, rowToJd } from './hf';
+import { detectColumns, parseDatasetId, rowToJd, toIsoDate } from './hf';
 
 describe('hugging face import', () => {
   it('accepts dataset links and ids only', () => {
@@ -19,5 +19,15 @@ describe('hugging face import', () => {
   });
   it('rejects datasets without a title or description column', () => {
     expect(() => detectColumns(['text', 'label'])).toThrow();
+  });
+});
+
+describe('posting year column', () => {
+  it('reads a bare year as 1 January of that year and picks `year` as the date column', () => {
+    expect(toIsoDate(2026)).toBe('2026-01-01');
+    expect(toIsoDate('2024')).toBe('2024-01-01');
+    expect(toIsoDate('2026-03-05')).toBe('2026-03-05');
+    expect(detectColumns(['id', 'job_title', 'company_name', 'job_description', 'requirements', 'year']).date).toBe('year');
+    expect(detectColumns(['job_title', 'job_description', 'year', 'posted_date']).date).toBe('posted_date');
   });
 });
