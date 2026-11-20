@@ -139,7 +139,7 @@ export async function runB5(ctx: BlockCtx): Promise<BlockResult> {
         const order = seededShuffle(groups, seed);
         for (const batch of pack(order, (g) => g.label.length + g.definition.length + g.segment_ids.slice(0, 2).reduce((a, x) => a + Math.min(160, segs.get(x)?.seg.text.length ?? 0) + 8, 40), BATCH_CHARS())) {
           const ids = new ShortIds();
-          const cands = batch.map((g) => ({ id: ids.short('c', g.competency_id), label: g.label, definition: g.definition, segments: g.segment_ids.slice(0, 2).map((x) => ({ id: ids.short('s', x), text: short(maskedText(segs.get(x)?.seg.text ?? ''), 160) })) }));
+          const cands = batch.map((g) => ({ id: ids.short('c', g.competency_id), label: g.label, definition: g.definition, jd_share: `${g.jd_refs.length}/${validJd}`, segments: g.segment_ids.slice(0, 2).map((x) => ({ id: ids.short('s', x), text: short(maskedText(segs.get(x)?.seg.text ?? ''), 160) })) }));
           const r = await ag.run('E10', { seat: seat.seat, seat_role: seat.role, scale_note: `${seat.scale}${s.rubric.length ? ` Bậc theo rubric: ${s.rubric.map((x) => `${x.level} = ${x.description}`).join('; ')}` : ''}`, role_title: s.session.role_title, candidates: cands }, { model: seat.model, effort: seat.effort });
           sources.push(r.source);
           const num = (v: string) => (v ? Number(v) : null);
