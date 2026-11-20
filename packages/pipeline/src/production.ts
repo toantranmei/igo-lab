@@ -20,6 +20,11 @@ export interface BatchItemInput {
   /** Index (in this batch) of the root an item derives from; or an existing root session. */
   root_index?: number;
   root_session_id?: string;
+  /** Per-item session fields; a root's own outcomes, owner and decision go in `charter` (a derived item inherits the root's). */
+  purpose?: string;
+  context?: string;
+  family?: string;
+  charter?: Charter;
 }
 
 /**
@@ -52,8 +57,8 @@ export async function createBatch(db: Db, workspaceId: string, input: { name: st
     if (x.framework_type !== 'ROOT' && !rootSid) throw new AppError('VALIDATION', `Khung "${x.role_title}" là phái sinh nhưng chưa chỉ khung gốc.`, 422);
     const root = rootSid ? await getSession(db, workspaceId, rootSid) : null;
     const rc = (root?.charter ?? {}) as Charter;
-    const charter: Charter = { ...(input.charter ?? {}), ...(root ? { policy_id: rc.policy_id, outcomes: rc.outcomes, owner: rc.owner, decision: rc.decision } : {}), level: x.level, framework_type: x.framework_type, ...(root ? { root_session_id: root.id, audit_sampled: sampled.has(i) } : {}) };
-    const { id } = await createSession(db, workspaceId, { name: `${input.name} · ${x.role_title}${x.level ? ` · ${x.level}` : ''}${x.industry ? ` · ${x.industry}` : ''}`, role_title: x.role_title, purpose: input.purpose, family: root?.family ?? undefined, industry: x.industry ?? root?.industry ?? undefined, charter }, actor, { internal: true });
+    const charter: Charter = { ...(input.charter ?? {}), ...(x.charter ?? {}), ...(root ? { policy_id: rc.policy_id, outcomes: rc.outcomes, owner: rc.owner, decision: rc.decision } : {}), level: x.level, framework_type: x.framework_type, ...(root ? { root_session_id: root.id, audit_sampled: sampled.has(i) } : {}) };
+    const { id } = await createSession(db, workspaceId, { name: `${input.name} · ${x.role_title}${x.level ? ` · ${x.level}` : ''}${x.industry ? ` · ${x.industry}` : ''}`, role_title: x.role_title, purpose: x.purpose ?? input.purpose, context: x.context, family: x.family ?? root?.family ?? undefined, industry: x.industry ?? root?.industry ?? undefined, charter }, actor, { internal: true });
     sessionOf[i] = id;
     await db.insert(t.productionItem).values({ id: newId('pit'), workspaceId, batchId, roleTitle: x.role_title, level: x.level ?? null, industry: x.industry ?? null, frameworkType: x.framework_type, rootItemId: null, sessionId: id, auditSampled: x.framework_type === 'ROOT' || sampled.has(i), createdBy: actor });
   }
