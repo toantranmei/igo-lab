@@ -721,12 +721,15 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
     const sentences = sample.map((x) => ({ id: ids9.short('s', x), text: maskedText(segs.get(x)?.seg.text ?? '') }));
     const r = await ag.run('E9', { codes, sentences });
     recodeSource = r.source;
-    const second = new Map(r.output.codes.map((c) => [ids9.long(c.sentence_id)!, c.code_id === 'NONE' ? 'NONE' : ids9.long(c.code_id) ?? 'NONE']));
-    // a sentence E1 coded to several competencies agrees when E9 picks any of them (recorded in calc_record)
-    const secondAligned = (x: string) => { const c = second.get(x) ?? 'NONE'; return codesOf.get(x)?.has(c) ? coded.get(x)! : c; };
+    // multi-label (E9 p2): E9 gives 1–2 codes per sentence, the main one first
+    const second = new Map(r.output.codes.map((c) => [ids9.long(c.sentence_id)!, c.code_ids.map((k) => (k === 'NONE' ? 'NONE' : ids9.long(k) ?? 'NONE'))]));
+    // agreement when the two codings share a code (E1 may also have several per sentence); otherwise E9's main code
+    // is compared with E1's: κ (15) stays a two-rater statistic over one label per sentence (recorded in calc_record)
+    const shared = (x: string) => (second.get(x) ?? ['NONE']).find((c) => codesOf.get(x)?.has(c)) ?? null;
+    const secondAligned = (x: string) => (shared(x) ? coded.get(x)! : (second.get(x) ?? ['NONE'])[0]);
     kappa = cohenKappa(sample.map((x) => coded.get(x)!), sample.map(secondAligned));
-    for (const x of sample) tb.calc({ substep: 'B3.recode', item_ref: x, formula: 'mã lần 1 (E1) so với mã lần 2 (E9)', inputs: { first: [...(codesOf.get(x) ?? [])], seed }, output: { second: second.get(x) ?? 'NONE' }, decision: codesOf.get(x)?.has(second.get(x) ?? '') ? 'khớp' : 'lệch', seat: s.agent_config.tasks.E9?.model ?? null });
-    tb.beat('READ', `Mã hóa kiểm chéo ${sample.length}/${allSentences.length} câu (E9)`, { formula: 'κ = (p_o − p_e) / (1 − p_e) — (15)', substitution: `p_o = ${kappa.po}; p_e = ${kappa.pe}; κ = ${kappa.kappa}`, set: { 'κ (E9)': kappa.kappa }, source: r.source });
+    for (const x of sample) tb.calc({ substep: 'B3.recode', item_ref: x, formula: 'mã lần 1 (E1) so với 1–2 mã lần 2 (E9): khớp khi có mã chung', inputs: { first: [...(codesOf.get(x) ?? [])], seed }, output: { second: second.get(x) ?? ['NONE'] }, decision: shared(x) ? 'khớp' : 'lệch', seat: s.agent_config.tasks.E9?.model ?? null });
+    tb.beat('READ', `Mã hóa kiểm chéo ${sample.length}/${allSentences.length} câu (E9)`, { formula: 'κ = (p_o − p_e) / (1 − p_e) — (15); khớp khi hai lần mã hóa có mã chung (câu nêu nhiều năng lực)', substitution: `p_o = ${kappa.po}; p_e = ${kappa.pe}; κ = ${kappa.kappa}`, set: { 'κ (E9)': kappa.kappa }, source: r.source });
   }
   const noSeg = groups.filter((g) => !g.segment_ids.length);
   const ids = groups.map((g) => g.competency_id);

@@ -246,7 +246,7 @@ Object.assign(handlers, {
     return { ...handlers['T12.audit_review'](i), sample: i.sample.map((q) => ({ id: q.id, code_ok: 'YES' })), variables: (i.gates ?? []).length ? vars.map((v) => ({ variable: v, result: 'PASS', plan: '' })) : [] };
   },
   'E9.recode'(i) {
-    return { codes: i.sentences.map((s) => ({ sentence_id: s.id, code_id: (i.codes.find((c) => tagsOf(c.definition).some((t) => tagsOf(s.text).includes(t))) ?? { id: 'NONE' }).id })) };
+    return { codes: i.sentences.map((s) => ({ sentence_id: s.id, code_ids: [(i.codes.find((c) => tagsOf(c.definition).some((t) => tagsOf(s.text).includes(t))) ?? { id: 'NONE' }).id] })) };
   },
   'E10.seat_score'(i) {
     return { scores: i.candidates.map((c) => ({ candidate_id: c.id, importance: '4', discrimination: '4', level: '3' })) };

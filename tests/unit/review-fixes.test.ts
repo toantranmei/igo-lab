@@ -39,3 +39,15 @@ describe('review · kiểm của agent và công thức', () => {
     expect(reliabilityE('paste', 'hf:owner/name#12', null)).toBe(2);
   });
 });
+
+describe('E9 p2: multi-label recoding (20/11/2026)', () => {
+  const input = { codes: [{ id: 'c1', label: 'A', definition: 'a' }, { id: 'c2', label: 'B', definition: 'b' }], sentences: [{ id: 's1', text: 'x' }, { id: 's2', text: 'y' }] };
+  it('accepts one or two codes per sentence, or NONE alone', () => {
+    expect(TASKS.E9.check!(input as any, { codes: [{ sentence_id: 's1', code_ids: ['c1', 'c2'] }, { sentence_id: 's2', code_ids: ['NONE'] }] })).toEqual([]);
+  });
+  it('refuses three codes, NONE with a code, an empty list and unknown codes', () => {
+    const e = TASKS.E9.check!(input as any, { codes: [{ sentence_id: 's1', code_ids: ['c1', 'c2', 'c1'] }, { sentence_id: 's2', code_ids: ['NONE', 'c1'] }] });
+    expect(e.length).toBeGreaterThanOrEqual(2);
+    expect(TASKS.E9.check!(input as any, { codes: [{ sentence_id: 's1', code_ids: [] }, { sentence_id: 's2', code_ids: ['c9'] }] }).length).toBeGreaterThanOrEqual(2);
+  });
+});

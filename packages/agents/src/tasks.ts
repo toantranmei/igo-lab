@@ -744,15 +744,22 @@ export const E9 = def({
   id: 'E9.recode',
   agent: 'E9',
   block: 'B3',
-  promptVersion: 'p1',
+  // p2 (20/11/2026): a JD sentence often names two competencies ("lập kế hoạch, theo dõi tiến độ và quản lý rủi ro");
+  // with one code per sentence, a second valid code counted as disagreement and κ (15) sat at 0.44–0.60 on real JDs.
+  // Multi-label coding: up to two codes; B3 counts agreement when one of them is among the first coding's codes.
+  promptVersion: 'p2',
   title: 'Mã hóa kiểm chéo: câu thuộc năng lực nào',
-  system: `Bạn mã hóa lại độc lập một mẫu câu JD. Với MỖI câu chọn đúng một mã năng lực trong "codes", hoặc "NONE" nếu câu không nêu năng lực nào. Bạn không biết cách mã hóa trước đó.`,
+  system: `Bạn mã hóa lại độc lập một mẫu câu JD. Với MỖI câu trả về code_ids: một mã năng lực trong "codes" mà câu nêu rõ nhất; chỉ khi câu nêu rõ thêm một năng lực KHÁC thì thêm mã thứ hai (tối đa 2 mã, mã chính đứng trước). Câu không nêu năng lực nào thì code_ids = ["NONE"]. Không thêm mã chỉ vì liên quan xa. Bạn không biết cách mã hóa trước đó.`,
   input: z.strictObject({ codes: z.array(Label), sentences: z.array(z.strictObject({ id: z.string(), text: z.string() })) }),
-  output: z.strictObject({ codes: z.array(z.strictObject({ sentence_id: z.string(), code_id: z.string() })) }),
+  output: z.strictObject({ codes: z.array(z.strictObject({ sentence_id: z.string(), code_ids: z.array(z.string()) })) }),
   check: (i, o) => {
     const ok = new Set([...i.codes.map((c) => c.id), 'NONE']);
     const ids = i.sentences.map((s) => s.id);
-    return [...badRefs('codes.code_id', o.codes.map((c) => c.code_id), ok), ...ids.filter((id) => o.codes.filter((c) => c.sentence_id === id).length !== 1).map((id) => `Cần đúng một mã cho câu "${id}"`)];
+    return [
+      ...badRefs('codes.code_ids', o.codes.flatMap((c) => c.code_ids), ok),
+      ...o.codes.filter((c) => c.code_ids.length < 1 || c.code_ids.length > 2 || (c.code_ids.includes('NONE') && c.code_ids.length > 1)).map((c) => `Câu "${c.sentence_id}": cần 1–2 mã, hoặc chỉ "NONE"`),
+      ...ids.filter((id) => o.codes.filter((c) => c.sentence_id === id).length !== 1).map((id) => `Cần đúng một dòng cho câu "${id}"`),
+    ];
   },
 });
 
