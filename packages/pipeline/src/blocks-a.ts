@@ -589,12 +589,14 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
     // merges to the grain of a framework competency: skill-level variants of one competency, wherever they fell.
     if (index.size > 1) {
       const heads = [...index.values()].sort((a, b) => norm(canonOf(a).label).localeCompare(norm(canonOf(b).label)));
-      // compact (name + 80 characters of definition) so the whole list fits one call and every pair can meet
-      const passes = pack(heads, (c) => canonOf(c).label.length + Math.min(80, canonOf(c).definition.length) + 30, BATCH_CHARS());
+      // compact (name + 80 characters of definition + JD count) in ONE call (≈ 260 clusters) so every pair can meet: split into
+      // several calls, variants of one competency on both sides of a split stayed apart (Project Manager, 20/11/2026)
+      const passes = pack(heads, (c) => canonOf(c).label.length + Math.min(80, canonOf(c).definition.length) + 40, Number(process.env.AGENT_MERGE_CHARS || 34000));
+      const jdCount = (c: (typeof heads)[number]) => new Set(c.members.map((id) => byId.get(id)?.doc)).size;
       const merged = await Promise.all(
         passes.map(async (part) => {
           const ids = new ShortIds();
-          const clusters = part.map((c) => ({ id: ids.short('k', c.id), label: canonOf(c).label, definition: short(canonOf(c).definition, 80) }));
+          const clusters = part.map((c) => ({ id: ids.short('k', c.id), label: canonOf(c).label, definition: short(canonOf(c).definition, 80), jds: jdCount(c) }));
           return { ids, r: await ag.run('E4M', { role_title: s.session.role_title, clusters }) };
         }),
       );

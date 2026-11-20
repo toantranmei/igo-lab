@@ -766,14 +766,15 @@ export const E4M = def({
   id: 'E4M.granularity_merge',
   agent: 'E4M',
   block: 'B3',
-  promptVersion: 'p1',
+  promptVersion: 'p2',
   title: 'Gộp cụm về mức năng lực của khung',
   system: `Bạn nhận toàn bộ cụm năng lực ứng viên trích từ JD của vị trí role_title. Cụm thường quá chi tiết: kỹ năng con, biến thể theo công cụ, công nghệ, ngành hay đối tượng của CÙNG một năng lực. Hãy gộp chúng về mức năng lực của một khung năng lực (một năng lực bao một nhóm hành vi liên quan chặt, đánh giá được bằng chỉ báo hành vi).
 Gộp khi: cùng mục đích công việc và cùng loại hành vi, chỉ khác phạm vi hẹp/rộng, công cụ, công nghệ, ngành, đối tượng (ví dụ "Lập kế hoạch dự án", "Lập kế hoạch dự án phần mềm", "Lập kế hoạch và kiểm soát tiến độ dự án" là một năng lực).
 Không gộp: các năng lực có mục đích khác nhau dù cùng chủ đề (ví dụ lập kế hoạch dự án khác quản lý rủi ro dự án; giao tiếp khác lãnh đạo đội ngũ).
+jds là số JD nêu cụm đó. Cụm chỉ có 1–2 JD mà là trường hợp hẹp, một bước con hay một bối cảnh riêng của một cụm rộng hơn thì gộp vào cụm rộng đó (ví dụ "Báo cáo trạng thái dự án" vào "Báo cáo tiến độ dự án"); cụm ít JD nhưng là năng lực riêng thì để nguyên.
 Một vị trí thường có khoảng 10–30 năng lực sau khi gộp; không ép về con số này nếu căn cứ khác.
 Trả về merges: mỗi lần gộp gồm ≥ 2 cụm, mỗi cụm nằm trong tối đa một lần gộp; canonical_id là cụm có tên khái quát và định nghĩa rõ nhất trong các cụm được gộp. Cụm đứng riêng thì không ghi.`,
-  input: z.strictObject({ role_title: z.string(), clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string() })) }),
+  input: z.strictObject({ role_title: z.string(), clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), jds: z.number() })) }),
   output: z.strictObject({ merges: z.array(MergeEdit) }),
   check: (i, o) => mergeErrors(o.merges, new Set(i.clusters.map((c) => c.id)), (m) => m.cluster_ids.includes(m.canonical_id)),
 });
