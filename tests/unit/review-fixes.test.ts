@@ -61,3 +61,12 @@ describe('E4M: a one-cluster merge is dropped, not an error (20/11/2026)', () =>
     expect(TASKS.E4M.check!(input as any, { merges: [{ cluster_ids: ['k1', 'k2'], canonical_id: 'k1' }, { cluster_ids: ['k2', 'k3'], canonical_id: 'k2' }] }).length).toBeGreaterThan(0);
   });
 });
+
+describe('E4M: ids with stray spaces are trimmed (20/11/2026)', () => {
+  it('accepts " k2" as k2', () => {
+    const input = { role_title: 'AI', clusters: [{ id: 'k1', label: 'A', definition: 'a', jds: 3 }, { id: 'k2', label: 'B', definition: 'b', jds: 1 }] };
+    const out = { merges: [{ cluster_ids: ['k1', ' k2'], canonical_id: ' k1' }] };
+    expect(TASKS.E4M.check!(input as any, out)).toEqual([]);
+    expect(TASKS.E4M.normalize(input as any, out).merges[0]).toEqual({ cluster_ids: ['k1', 'k2'], canonical_id: 'k1' });
+  });
+});

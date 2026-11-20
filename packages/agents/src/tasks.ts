@@ -773,6 +773,9 @@ export const E9 = def({
  * 120+ one-JD clusters: κ (15) fell below 0.61 and the core (23) stayed under 8. This pass sees every cluster at once
  * and merges to the grain of a framework competency.
  */
+const e4mClean = (o: { merges: { cluster_ids: string[]; canonical_id: string }[] }) => ({
+  merges: o.merges.map((m) => ({ cluster_ids: [...new Set(m.cluster_ids.map((x) => x.trim()))], canonical_id: m.canonical_id.trim() })).filter((m) => m.cluster_ids.length >= 2),
+});
 export const E4M = def({
   id: 'E4M.granularity_merge',
   agent: 'E4M',
@@ -789,9 +792,10 @@ Một vị trí thường có khoảng 15–25 năng lực sau khi gộp; khi ph
 Trả về merges: mỗi lần gộp gồm ≥ 2 cụm, mỗi cụm nằm trong tối đa một lần gộp; canonical_id là cụm có tên khái quát và định nghĩa rõ nhất trong các cụm được gộp. Cụm đứng riêng thì không ghi.`,
   input: z.strictObject({ role_title: z.string(), clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), jds: z.number() })) }),
   output: z.strictObject({ merges: z.array(MergeEdit) }),
-  // a "merge" of one cluster changes nothing: dropped instead of failing the call (QA run, 20/11/2026)
-  check: (i, o) => mergeErrors(o.merges.filter((m) => new Set(m.cluster_ids).size >= 2), new Set(i.clusters.map((c) => c.id)), (m) => m.cluster_ids.includes(m.canonical_id)),
-  normalize: (_i, o) => ({ merges: o.merges.filter((m) => new Set(m.cluster_ids).size >= 2) }),
+  // a "merge" of one cluster changes nothing: dropped instead of failing the call (QA run, 20/11/2026); ids are
+  // trimmed first (" k99" came back on the AI / ML run)
+  check: (i, o) => mergeErrors(e4mClean(o).merges, new Set(i.clusters.map((c) => c.id)), (m) => m.cluster_ids.includes(m.canonical_id)),
+  normalize: (_i, o) => e4mClean(o),
 });
 
 /**
