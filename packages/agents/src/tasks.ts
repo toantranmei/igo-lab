@@ -773,6 +773,28 @@ export const E9 = def({
  * 120+ one-JD clusters: κ (15) fell below 0.61 and the core (23) stayed under 8. This pass sees every cluster at once
  * and merges to the grain of a framework competency.
  */
+/**
+ * B3 dictionary recall (20/11/2026). The code shortlist compares words (trigram Jaccard ≥ 0.3), so a base competency
+ * worded differently never reached E4: "Thu thập và đặc tả yêu cầu" was added next to "Phân tích yêu cầu nghiệp vụ".
+ * This pass sees every candidate cluster and every base competency and suggests base entries that may have the same
+ * or an overlapping meaning; E4 still decides REUSE / UPDATE / ADD / NEEDS_REVIEW on them.
+ */
+export const E4S = def({
+  id: 'E4S.dictionary_near',
+  agent: 'E4S',
+  block: 'B3',
+  promptVersion: 'p1',
+  title: 'Gợi ý năng lực gần nghĩa trong từ điển nền',
+  system: `Bạn nhận các cụm năng lực ứng viên (clusters) và các năng lực đã có trong từ điển (dictionary). Với cụm nào mà một hay hai năng lực trong dictionary có thể CÙNG hoặc CHỒNG nội hàm (cùng mục đích công việc, diễn đạt khác, hẹp hơn hay rộng hơn), trả về một dòng: cluster_id và dictionary_ids (1–2 mã, gần nhất trước). Cụm không có năng lực nào như vậy thì bỏ qua. Không nối chỉ vì cùng lĩnh vực.`,
+  input: z.strictObject({ clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string() })), dictionary: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string() })) }),
+  output: z.strictObject({ near: z.array(z.strictObject({ cluster_id: z.string(), dictionary_ids: z.array(z.string()) })) }),
+  check: (i, o) => [
+    ...badRefs('near.cluster_id', o.near.map((x) => x.cluster_id.trim()), new Set(i.clusters.map((c) => c.id))),
+    ...badRefs('near.dictionary_ids', o.near.flatMap((x) => x.dictionary_ids.map((d) => d.trim())), new Set(i.dictionary.map((c) => c.id))),
+  ],
+  normalize: (_i, o) => ({ near: o.near.map((x) => ({ cluster_id: x.cluster_id.trim(), dictionary_ids: [...new Set(x.dictionary_ids.map((d) => d.trim()))].slice(0, 2) })).filter((x) => x.dictionary_ids.length) }),
+});
+
 const e4mClean = (o: { merges: { cluster_ids: string[]; canonical_id: string }[] }) => ({
   merges: o.merges.map((m) => ({ cluster_ids: [...new Set(m.cluster_ids.map((x) => x.trim()))], canonical_id: m.canonical_id.trim() })).filter((m) => m.cluster_ids.length >= 2),
 });
@@ -847,7 +869,7 @@ Chỉ dựa trên tên, định nghĩa, jd_share và các đoạn căn cứ; kh�
   normalize: (_i, o) => ({ scores: [...o.scores].sort((a, b) => a.candidate_id.localeCompare(b.candidate_id, 'en', { numeric: true })) }),
 });
 
-export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E4M, E5, E6L, E6, E7, E8, E9, E10 } as const;
+export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E4M, E4S, E5, E6L, E6, E7, E8, E9, E10 } as const;
 export type TaskName = keyof typeof TASKS;
 export type TaskInput<K extends TaskName> = z.infer<(typeof TASKS)[K]['input']>;
 export type TaskOutput<K extends TaskName> = z.infer<(typeof TASKS)[K]['output']>;

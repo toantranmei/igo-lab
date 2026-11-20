@@ -535,6 +535,25 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
   tb.beat('READ', 'Gom sơ bộ bằng code (K5)', { formula: 'cụm = nhóm ứng viên giống ≥ 0,8 (tên + định nghĩa)', substitution: `${raw.length} ứng viên thô → ${cls.length} cụm sơ bộ`, set: { 'nhóm ứng viên': cls.length } });
   // K4: look up the dictionary first; a sure match (same name, near-identical definition) is decided by code
   const shortlists = new Map(cls.map((c) => [c.id, lexicalRetriever.shortlist(canonOf(c), ctx.base.C)]));
+  // E4S: base competencies worded differently that the lexical shortlist cannot reach; suggestions go first
+  // (score 1 marks them in the trace), E4 still decides on them
+  if (ctx.base.C.length && cls.length) {
+    const sIds = new ShortIds();
+    const parts = pack(cls, (c) => canonOf(c).label.length + Math.min(80, canonOf(c).definition.length) + 30, Math.max(4000, Number(process.env.AGENT_MERGE_CHARS || 34000) - ctx.base.C.reduce((a, r) => a + r.data.label.length + Math.min(80, r.data.definition.length) + 30, 0)));
+    const dictionary = ctx.base.C.map((r) => ({ id: sIds.short('d', r.id), label: r.data.label, definition: short(r.data.definition, 80) }));
+    const res = await Promise.all(parts.map((part) => ag.run('E4S', { clusters: part.map((c) => ({ id: sIds.short('k', c.id), label: canonOf(c).label, definition: short(canonOf(c).definition, 80) })), dictionary })));
+    let added = 0;
+    for (const r of res)
+      for (const x of r.output.near) {
+        const cid = sIds.long(x.cluster_id);
+        if (!cid || !shortlists.has(cid)) continue;
+        const cur = shortlists.get(cid)!;
+        const extra = x.dictionary_ids.map((d) => ctx.base.C.find((b) => b.id === sIds.long(d))).filter((b): b is Rec<CData> => !!b && !cur.some((y) => y.rec.id === b.id));
+        added += extra.length;
+        shortlists.set(cid, [...extra.map((rec) => ({ rec, score: 1 })), ...cur].slice(0, 3));
+      }
+    tb.beat('READ', 'Gợi ý năng lực gần nghĩa trong từ điển (E4S)', { formula: 'danh sách so = gợi ý của E4S ∪ so chữ (trigram)', substitution: `${added} năng lực nền thêm vào danh sách so của ${cls.length} cụm`, source: mergeSources('E4S.dictionary_near', res.map((r) => r.source)), explanation: 'So chữ bỏ sót năng lực cùng nghĩa nhưng diễn đạt khác; E4 vẫn là bên quyết dùng lại, sửa hay thêm mới.' });
+  }
   const sure = new Map<string, string>();
   for (const c of cls) {
     const sl = shortlists.get(c.id)!;

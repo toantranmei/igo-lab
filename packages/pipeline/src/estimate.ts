@@ -121,7 +121,7 @@ export function estimateRun(b: EstimateBasis, config: AgentConfig = DEFAULT_AGEN
     B1: [t('E1', e1, Math.min(BATCH, jds * SIZE.jd), Math.ceil((jds / Math.max(1, e1)) * OUT.jd))],
     // the occupation list rides on the first E23 call; spread over the calls so the total is right
     B2: [t('E23', e23, Math.min(BATCH, rawTasks * SIZE.task) + (e23 ? Math.ceil(23000 / e23) : 0), 300)],
-    B3: [t('E4', e4, Math.min(BATCH - 2600, Math.ceil((candidates * SIZE.cand) / Math.max(1, e4))) + 2600, Math.ceil((candidates / Math.max(1, e4)) * OUT.cluster)), t('E4M', e4merge * 2, Math.ceil((groups * 230) / e4merge), Math.ceil((groups * 8) / e4merge)), t('E9', candidates ? 1 : 0, Math.min(34000, Math.max(Math.ceil(candidates * 0.2), Math.min(candidates, 60)) * 160 + groups * SIZE.comp), Math.max(Math.ceil(candidates * 0.2), Math.min(candidates, 60)) * 12)],
+    B3: [t('E4S', baseCompetencies && candidates ? Math.max(1, Math.ceil((candidates * 130 + baseCompetencies * 130) / 34000)) : 0, Math.min(34000, candidates * 130 + baseCompetencies * 130), Math.ceil(candidates * 6)), t('E4', e4, Math.min(BATCH - 2600, Math.ceil((candidates * SIZE.cand) / Math.max(1, e4))) + 2600, Math.ceil((candidates / Math.max(1, e4)) * OUT.cluster)), t('E4M', e4merge * 2, Math.ceil((groups * 230) / e4merge), Math.ceil((groups * 8) / e4merge)), t('E9', candidates ? 1 : 0, Math.min(34000, Math.max(Math.ceil(candidates * 0.2), Math.min(candidates, 60)) * 160 + groups * SIZE.comp), Math.max(Math.ceil(candidates * 0.2), Math.min(candidates, 60)) * 12)],
     B4: [t('T7', events, 2000, 300)],
     B5: [t('E5', e5, Math.min(4500, selected * SIZE.comp) + 25 * 120, 25 * OUT.row), t('E10', seats * Math.max(1, Math.ceil((kept * 500) / BATCH)), Math.min(BATCH, kept * 500), kept * OUT.score)],
     // E6: the rewrite round adds calls but only rewrites failed indicators (≈ 10% of the output, P1 run)
@@ -177,7 +177,7 @@ export const ANOMALY_INPUT_TOKENS_BATCH = 24000;
  * ≈ 9 000 by the conservative estimate), so both get the batch limit too.
  */
 /** E4M and E9 see every candidate cluster of the role in one call by design (35 real postings: 10–15 thousand tokens). */
-export const BATCH_TASKS: TaskName[] = ['T3', 'T5', 'T12', 'T15', 'E23', 'E7', 'E4M', 'E9'];
+export const BATCH_TASKS: TaskName[] = ['T3', 'T5', 'T12', 'T15', 'E23', 'E7', 'E4M', 'E9', 'E4S'];
 export const inputLimitFor = (task: TaskName) => (BATCH_TASKS.includes(task) ? Number(process.env.AGENT_ANOMALY_INPUT_TOKENS_BATCH || ANOMALY_INPUT_TOKENS_BATCH) : Number(process.env.AGENT_ANOMALY_INPUT_TOKENS || ANOMALY_INPUT_TOKENS));
 /** Estimated input tokens of one call from its prompt length. */
 export const inputTokensFromChars = (chars: number) => CLI_FRAME_TOKENS + Math.ceil(chars / CHARS_PER_TOKEN);

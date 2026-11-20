@@ -209,6 +209,11 @@ Object.assign(handlers, {
     const support = (i.external_tasks ?? []).length && i.clusters.length ? [{ cluster_id: i.clusters[0].id, task_ids: i.external_tasks.slice(0, 2).map((x) => x.id) }] : [];
     return { support, merges, matches };
   },
+  'E4S.dictionary_near'(i) {
+    // same name as a dictionary entry → suggested (the lexical shortlist already finds these; keeps the fake simple)
+    const near = i.clusters.map((c) => ({ cluster_id: c.id, dictionary_ids: i.dictionary.filter((d) => norm(d.label) === norm(c.label)).map((d) => d.id).slice(0, 2) })).filter((x) => x.dictionary_ids.length);
+    return { near };
+  },
   'E4M.granularity_merge'(i) {
     // same rule as the fake E4: clusters with the same name are one competency
     const byLabel = new Map();
