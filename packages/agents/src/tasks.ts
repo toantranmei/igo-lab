@@ -785,7 +785,9 @@ Một vị trí thường có khoảng 15–25 năng lực sau khi gộp; khi ph
 Trả về merges: mỗi lần gộp gồm ≥ 2 cụm, mỗi cụm nằm trong tối đa một lần gộp; canonical_id là cụm có tên khái quát và định nghĩa rõ nhất trong các cụm được gộp. Cụm đứng riêng thì không ghi.`,
   input: z.strictObject({ role_title: z.string(), clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), jds: z.number() })) }),
   output: z.strictObject({ merges: z.array(MergeEdit) }),
-  check: (i, o) => mergeErrors(o.merges, new Set(i.clusters.map((c) => c.id)), (m) => m.cluster_ids.includes(m.canonical_id)),
+  // a "merge" of one cluster changes nothing: dropped instead of failing the call (QA run, 20/11/2026)
+  check: (i, o) => mergeErrors(o.merges.filter((m) => new Set(m.cluster_ids).size >= 2), new Set(i.clusters.map((c) => c.id)), (m) => m.cluster_ids.includes(m.canonical_id)),
+  normalize: (_i, o) => ({ merges: o.merges.filter((m) => new Set(m.cluster_ids).size >= 2) }),
 });
 
 const Score = z.enum(['1', '2', '3', '4', '5', '']);

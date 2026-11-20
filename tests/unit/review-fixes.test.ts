@@ -51,3 +51,13 @@ describe('E9 p2: multi-label recoding (20/11/2026)', () => {
     expect(TASKS.E9.check!(input as any, { codes: [{ sentence_id: 's1', code_ids: [] }, { sentence_id: 's2', code_ids: ['c9'] }] }).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('E4M: a one-cluster merge is dropped, not an error (20/11/2026)', () => {
+  const input = { role_title: 'QA', clusters: [{ id: 'k1', label: 'A', definition: 'a', jds: 3 }, { id: 'k2', label: 'B', definition: 'b', jds: 1 }, { id: 'k3', label: 'C', definition: 'c', jds: 1 }] };
+  it('accepts and drops it; still refuses a cluster in two merges', () => {
+    const out = { merges: [{ cluster_ids: ['k1'], canonical_id: 'k1' }, { cluster_ids: ['k2', 'k3'], canonical_id: 'k2' }] };
+    expect(TASKS.E4M.check!(input as any, out)).toEqual([]);
+    expect(TASKS.E4M.normalize(input as any, out).merges).toHaveLength(1);
+    expect(TASKS.E4M.check!(input as any, { merges: [{ cluster_ids: ['k1', 'k2'], canonical_id: 'k1' }, { cluster_ids: ['k2', 'k3'], canonical_id: 'k2' }] }).length).toBeGreaterThan(0);
+  });
+});
