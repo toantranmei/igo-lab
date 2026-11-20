@@ -1,6 +1,6 @@
 import type { ProgressStep, TraceSource } from '@cl/contract';
 import { inArray } from 'drizzle-orm';
-import { BLOCK_TASKS, TASKS, runTask, shortModel, type TaskInput, type TaskModel, type TaskName, type TaskOutput } from '@cl/agents';
+import { BLOCK_TASKS, DEFAULT_AGENT_CONFIG, TASKS, runTask, shortModel, type TaskInput, type TaskModel, type TaskName, type TaskOutput } from '@cl/agents';
 import { sha256, t } from '@cl/db';
 import type { CData, Rec } from '@cl/registry';
 import { BLOCK_META } from './meta';
@@ -38,7 +38,8 @@ export function agentTracker(ctx: BlockCtx) {
   };
   return {
     async run<K extends TaskName>(name: K, input: TaskInput<K>, override?: TaskModel): Promise<{ output: TaskOutput<K>; source: TraceSource }> {
-      const tm = override ?? ctx.agent.config.tasks[name];
+      // a run snapshot taken before a task existed has no entry for it: the default config answers
+      const tm = override ?? ctx.agent.config.tasks[name] ?? DEFAULT_AGENT_CONFIG.tasks[name];
       const step = steps.get(name) ?? { task_id: TASKS[name].id, title: TASKS[name].title, model: shortModel(tm.model), total: 0, done: 0, cached: 0, failed: 0 };
       if (!step.model.split('/').includes(shortModel(tm.model))) step.model += '/' + shortModel(tm.model);
       step.total++;
@@ -709,7 +710,7 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
       codesOf.set(x, (codesOf.get(x) ?? new Set()).add(g.competency_id));
     }
   const allSentences = [...coded.keys()].sort();
-  const nSample = Math.min(allSentences.length, Math.max(1, Math.ceil(allSentences.length * (s.policy.recode_share ?? 0.2)), s.policy.kappa_min_items ?? 10));
+  const nSample = Math.min(allSentences.length, Math.max(1, Math.ceil(allSentences.length * (s.policy.recode_share ?? 0.2)), s.policy.kappa_min_items ?? 10, s.policy.recode_min_sample ?? 60));
   // seeds come from the content (not the attempt), so the same data gives the same order and stored answers are reused
   const seed = seedOf(`${s.session.role_title}|E9|${allSentences.join(',')}`);
   const sample = seededShuffle(allSentences, seed).slice(0, nSample);

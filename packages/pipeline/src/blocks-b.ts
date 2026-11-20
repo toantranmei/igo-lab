@@ -458,6 +458,16 @@ export async function runB6(ctx: BlockCtx): Promise<BlockResult> {
   const excluded = groups.filter((g) => !passedC.includes(g));
   for (const g of groups) tb.calc({ substep: 'B6.count', item_ref: g.competency_id, formula: '2 ≤ số chỉ báo đạt mỗi bậc 1, 3, 5 ≤ 4 — (29)', inputs: Object.fromEntries(INDICATOR_LEVELS.map((L) => [`b${L}`, inds.filter((x) => x.competency_id === g.competency_id && x.level === L && x.pass).length])), output: { ok: countOk(g.competency_id), class: classOf.get(g.competency_id) ?? '' }, decision: countOk(g.competency_id) ? 'đi tiếp' : 'cần người xem lại' });
   const okInds = inds.filter((x) => x.pass);
+  // E6L: one call over the whole core adds the links E6 missed batch by batch (union; E6's links are kept)
+  if (outcomeList.length && groups.length > 1) {
+    const lIds = new ShortIds();
+    const r = await ag.run('E6L', { role_title: s.session.role_title, outcomes: outcomeList, competencies: groups.map((g) => ({ id: lIds.short('c', g.competency_id), label: g.label, definition: g.definition })) });
+    for (const l of r.output.links) {
+      const cid = lIds.long(l.competency_id);
+      if (cid && l.outcome_ids.length) outcomeLinks[cid] = [...new Set([...(outcomeLinks[cid] ?? []), ...l.outcome_ids])].sort();
+    }
+    tb.beat('READ', 'Nối năng lực lõi với kết quả chính (E6L)', { formula: 'liên kết = liên kết của E6 ∪ liên kết của E6L — (30)', substitution: `${r.output.links.filter((l) => l.outcome_ids.length).length}/${groups.length} năng lực có kết quả`, source: r.source, explanation: 'E6 nêu kết quả khi soạn chỉ báo theo từng lô; lượt này nhìn cả khung một lần.' });
+  }
   const oc = outcomeConstraint(outcomeLinks, passedC.map((g) => g.competency_id), outcomeList.map((o) => o.id));
   if (outcomeList.length) tb.calc({ substep: 'B6.outcomes', formula: 'mỗi năng lực lõi gắn ≥ 1 kết quả ∧ mỗi kết quả có ≥ 2 năng lực — (30)', inputs: { outcomes: outcomeList.length, links: outcomeLinks }, output: oc });
   const kErrors = ks1.filter((x) => x.kind === 'ERROR');

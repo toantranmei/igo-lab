@@ -794,6 +794,28 @@ Trả về merges: mỗi lần gộp gồm ≥ 2 cụm, mỗi cụm nằm trong 
   normalize: (_i, o) => ({ merges: o.merges.filter((m) => new Set(m.cluster_ids).size >= 2) }),
 });
 
+/**
+ * B6 outcome links over the whole core (20/11/2026). E6 names the outcomes of a competency while writing its
+ * indicators, one batch at a time, and links conservatively: on 35 real Software Engineer postings the outcome
+ * "maintainable, tested, reviewed code" got one competency and (30) failed. This pass sees every core competency and
+ * every outcome at once; its links are added to E6's.
+ */
+export const E6L = def({
+  id: 'E6L.outcome_link',
+  agent: 'E6L',
+  block: 'B6',
+  promptVersion: 'p1',
+  title: 'Nối năng lực lõi với kết quả chính (nhìn cả khung)',
+  system: `Bạn nhận các kết quả chính (outcomes) mà vị trí role_title phải tạo ra và toàn bộ năng lực lõi của khung. Với MỖI năng lực trả về đúng một dòng: outcome_ids là các kết quả mà người làm CẦN năng lực đó để tạo ra (góp phần trực tiếp, không phải liên quan xa); thường 1–3 kết quả. Xét từng kết quả: năng lực nào thực sự cần để đạt kết quả đó. Không nối chỉ để kết quả nào cũng có năng lực.`,
+  input: z.strictObject({ role_title: z.string(), outcomes: z.array(z.strictObject({ id: z.string(), text: z.string() })), competencies: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string() })) }),
+  output: z.strictObject({ links: z.array(z.strictObject({ competency_id: z.string(), outcome_ids: z.array(z.string()) })) }),
+  check: (i, o) => {
+    const oc = new Set(i.outcomes.map((x) => x.id));
+    const ids = i.competencies.map((c) => c.id);
+    return [...badRefs('links.competency_id', o.links.map((l) => l.competency_id), new Set(ids)), ...badRefs('links.outcome_ids', o.links.flatMap((l) => l.outcome_ids), oc), ...ids.filter((id) => o.links.filter((l) => l.competency_id === id).length !== 1).map((id) => `Cần đúng một dòng cho năng lực "${id}"`)];
+  },
+});
+
 const Score = z.enum(['1', '2', '3', '4', '5', '']);
 /** One seat of the priority/level round (spec §6.1a). In P1 only the level is used, when the session has a rubric. */
 export const E10 = def({
@@ -821,7 +843,7 @@ Chỉ dựa trên tên, định nghĩa, jd_share và các đoạn căn cứ; kh�
   normalize: (_i, o) => ({ scores: [...o.scores].sort((a, b) => a.candidate_id.localeCompare(b.candidate_id, 'en', { numeric: true })) }),
 });
 
-export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E4M, E5, E6, E7, E8, E9, E10 } as const;
+export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E4M, E5, E6L, E6, E7, E8, E9, E10 } as const;
 export type TaskName = keyof typeof TASKS;
 export type TaskInput<K extends TaskName> = z.infer<(typeof TASKS)[K]['input']>;
 export type TaskOutput<K extends TaskName> = z.infer<(typeof TASKS)[K]['output']>;

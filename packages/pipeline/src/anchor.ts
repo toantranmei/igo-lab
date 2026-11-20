@@ -102,6 +102,6 @@ export async function assertAgentsUnlocked(db: Db, tasks: TaskName[], config: { 
   for (const name of tasks) {
     const task = TASKS[name];
     const m = await latestMeasure(db, task.id, config.tasks[name], task.promptVersion);
-    if (m && !m.passed) throw new AppError('AGENT_LOCKED', `${task.id} (${config.tasks[name].model}, prompt ${task.promptVersion}) bị khóa: lần đo gần nhất trên bộ neo "${m.anchorSet}" chưa đạt ngưỡng.`, 409, { task_id: task.id, measure_id: m.id, metrics: m.metrics, thresholds: m.thresholds }, ['OPEN_STEP']);
+    if (m && !m.passed) throw new AppError('AGENT_LOCKED', `${task.id} (${config.tasks[name]?.model ?? '—'}, prompt ${task.promptVersion}) bị khóa: lần đo gần nhất trên bộ neo "${m.anchorSet}" chưa đạt ngưỡng.`, 409, { task_id: task.id, measure_id: m.id, metrics: m.metrics, thresholds: m.thresholds }, ['OPEN_STEP']);
   }
 }

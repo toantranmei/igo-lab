@@ -1,7 +1,7 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { AppError, canonicalJson, scrubPaths } from '@cl/contract';
 import { appendEvent, newId, sha256, t, type Db } from '@cl/db';
-import type { AgentConfig, TaskModel } from './config';
+import { DEFAULT_AGENT_CONFIG, type AgentConfig, type TaskModel } from './config';
 import { ClaudeCliRunner } from './runner';
 import { TASKS, outputJsonSchema, type TaskDef, type TaskInput, type TaskName, type TaskOutput } from './tasks';
 
@@ -69,7 +69,8 @@ const userPrompt = (inputCanonical: string, repair?: string[]) =>
  */
 export async function runTask<K extends TaskName>(ctx: TaskContext, name: K, rawInput: TaskInput<K>, override?: TaskModel): Promise<TaskResult<TaskOutput<K>>> {
   const task = TASKS[name] as unknown as TaskDef;
-  const tm = override ?? ctx.config.tasks[name];
+  // a run snapshot taken before a task existed (E4M, E6L) has no entry for it: the default config answers
+  const tm = override ?? ctx.config.tasks[name] ?? DEFAULT_AGENT_CONFIG.tasks[name];
   const input = task.input.parse(rawInput);
   const inputCanonical = canonicalInput(input);
   const maxChars = ctx.maxInputChars ?? Number(process.env.AGENT_MAX_INPUT_CHARS ?? 120000);

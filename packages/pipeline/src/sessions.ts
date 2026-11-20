@@ -177,7 +177,7 @@ export async function removeUserEvent(db: Db, sessionId: string, id: string) {
 
 /** What a run will send and call, shown on the confirmation screen before anything is sent. */
 export function runPlan(jdCount: number, config: AgentConfig = DEFAULT_AGENT_CONFIG, eventCount = 0, hasRubric = false) {
-  const m = (k: TaskName) => config.tasks[k];
+  const m = (k: TaskName) => config.tasks[k] ?? DEFAULT_AGENT_CONFIG.tasks[k];
   const row = (k: TaskName, unit: string, calls: string, skip?: string) => ({ task: k, task_id: TASKS[k].id, block: TASKS[k].block, title: TASKS[k].title, model: m(k).model, effort: m(k).effort, unit, calls, skip });
   const seats = config.seats.map((s) => s.model.replace('claude-', '')).join(' / ');
   return {

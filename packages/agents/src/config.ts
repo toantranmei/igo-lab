@@ -48,7 +48,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
     T1: H, T2: H, T3: H, T4: H, T5: H, T6: H, T7: H, T8: H, T9: H, T10: S, T11: H, T12: S, T13: H,
     T14: { model: MODELS.sonnet, effort: 'low' },
     T15: { model: MODELS.haiku, effort: 'medium' },
-    E1: H, E23: H, E4: H, E4M: S, E5: H, E6: S, E7: H, E8: { model: MODELS.opus, effort: 'low' }, E9: S, E10: H,
+    E1: H, E23: H, E4: H, E4M: S, E5: H, E6L: S, E6: S, E7: H, E8: { model: MODELS.opus, effort: 'low' }, E9: S, E10: H,
   },
   seats: [
     { seat: 'seat-1', ...H, role: 'Quản lý trực tiếp của vị trí', scale: '1–5 theo hậu quả nếu người giữ vị trí thiếu năng lực này: 1 không đáng kể … 5 công việc thất bại.' },
@@ -58,13 +58,22 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
 };
 
 /**
- * Configuration for a session's rigor (decision of 19/11/2026). (31) only decides the "Sản phẩm thị trường" tier,
- * which level C never reaches, so at level C the auditor E8 runs on Haiku (≈ 40× cheaper) and G7.6 stays a deviation
- * ticket; levels A and B keep E8 on Opus so the tier can be reached on data.
+ * Configuration for a session's rigor. Levels A and B keep the default (E8 on Opus so the "Sản phẩm thị trường" tier
+ * can be reached on data).
+ * Level C (decision of 20/11/2026, option A1): the checkers are the strong models, the writer the cheap one. On real
+ * postings the three Haiku seats misread indicator levels at random (a different competency dropped at B6 on every
+ * run, final coverage 59–84%) and the Haiku auditor flagged a different variable on every run. So the seats (E7, and
+ * E10 at B5, which shares them) and the auditor E8 run on Sonnet; E6 writes on Haiku, since (2) requires the writer
+ * and the seats to differ. Weak indicators are caught by the Sonnet seats and go to the rewrite round.
  */
 export function agentConfigFor(rigor: 'A' | 'B' | 'C' | undefined): AgentConfig {
   if (rigor === 'A' || rigor === 'B') return DEFAULT_AGENT_CONFIG;
-  return { ...DEFAULT_AGENT_CONFIG, version: `${DEFAULT_AGENT_CONFIG.version}-c`, tasks: { ...DEFAULT_AGENT_CONFIG.tasks, E8: { model: MODELS.haiku, effort: 'low' } } };
+  return {
+    ...DEFAULT_AGENT_CONFIG,
+    version: `${DEFAULT_AGENT_CONFIG.version}-c2`,
+    tasks: { ...DEFAULT_AGENT_CONFIG.tasks, E6: { model: MODELS.haiku, effort: 'low' }, E8: { model: MODELS.sonnet, effort: 'low' } },
+    seats: DEFAULT_AGENT_CONFIG.seats.map((x) => ({ ...x, model: MODELS.sonnet, effort: 'low' })),
+  };
 }
 
 export const shortModel = (m: string) => (m.includes('haiku') ? 'haiku' : m.includes('sonnet') ? 'sonnet' : m.includes('opus') ? 'opus' : m.includes('fable') ? 'fable' : m);
@@ -77,7 +86,7 @@ export const BLOCK_TASKS: Record<string, TaskName[]> = {
   B3: ['E4', 'E4M', 'E9'],
   B4: ['T7'],
   B5: ['E5', 'E10'],
-  B6: ['E6', 'E7'],
+  B6: ['E6', 'E6L', 'E7'],
   B7: ['E8'],
   B8: [],
   FAST: [],

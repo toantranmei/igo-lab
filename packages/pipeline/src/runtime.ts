@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 import { AppError, MAIN_BLOCK_IDS, scrubPaths, gateBlocks, type RunStop, type StopAction, type StopCode, type BlockCard, type BlockDetail, type BlockId, type BlockTrace, type CardState, type DictFrame, type GateResult, type InputDoc, type InputEvent, type InputTask, type Lesson, type LogEntry, type PendingGuide, type ReleaseHistoryEntry, type SessionState } from '@cl/contract';
-import { BLOCK_TASKS, ClaudeCliRunner, TASKS, getBreaker, shortModel, type BreakerState, type TaskName } from '@cl/agents';
+import { BLOCK_TASKS, ClaudeCliRunner, DEFAULT_AGENT_CONFIG, TASKS, getBreaker, shortModel, type BreakerState, type TaskName } from '@cl/agents';
 import { appendEvent, hashJson, newId, t, type Db } from '@cl/db';
 import { getStop, listReleases, loadDictionary, toDictView } from '@cl/registry';
 import { runB0, runB1, runB2, runB3, runFAST } from './blocks-a';
@@ -499,7 +499,7 @@ function badgeFor(block: BlockId, snapshot: RunSnapshot | null, a?: Attempt | nu
   const names = BLOCK_TASKS[block] as TaskName[];
   if (!names.length) return { kind: 'CODE' };
   const cfg = snapshot?.agent_config;
-  return { kind: 'AI', tasks: names.filter((n) => n !== 'T9' || (snapshot?.rubric.length ?? 0) > 0).map((n) => ({ task_id: TASKS[n].id, model: n === 'T9' || n === 'T11' ? (cfg?.seats ?? []).map((s) => shortModel(s.model)).join('/') || '3 ghế' : shortModel(cfg?.tasks[n].model ?? ''), effort: cfg?.tasks[n].effort ?? '' })) };
+  return { kind: 'AI', tasks: names.filter((n) => n !== 'T9' || (snapshot?.rubric.length ?? 0) > 0).map((n) => ({ task_id: TASKS[n].id, model: n === 'T9' || n === 'T11' ? (cfg?.seats ?? []).map((s) => shortModel(s.model)).join('/') || '3 ghế' : shortModel((cfg?.tasks[n] ?? DEFAULT_AGENT_CONFIG.tasks[n])?.model ?? ''), effort: (cfg?.tasks[n] ?? DEFAULT_AGENT_CONFIG.tasks[n])?.effort ?? '' })) };
 }
 const cardState = (a: Attempt | undefined, acked: boolean): CardState => (!a ? 'idle' : a.status === 'QUEUED' || a.status === 'RUNNING' ? 'running' : a.status === 'FAILED' ? 'error' : a.status === 'STALE' ? 'stale' : !acked ? 'awaiting_view' : a.status === 'DONE' ? 'pass' : a.status === 'NEEDS_INPUT' ? 'needs_input' : 'blocked');
 

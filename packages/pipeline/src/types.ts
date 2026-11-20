@@ -27,6 +27,11 @@ export interface Policy {
   kappa_min_items: number;
   /** Share of coded sentences re-coded by E9 (≥ 20%). */
   recode_share: number;
+  /**
+   * At least this many sentences are re-coded (all of them when there are fewer). With ~29 sentences κ (15) moved by
+   * about ±0.1 between two runs of the same 35 JDs (0.64 vs 0.49, 20/11/2026), around a 0.61 threshold.
+   */
+  recode_min_sample?: number;
   /** (21) keep rule and (23) core size. */
   keep: { importance: number; discrimination: number; rwg: number };
   core_min: number;
@@ -59,6 +64,7 @@ const SOP_BASE = {
   min_kappa: 0.61,
   kappa_min_items: 10,
   recode_share: 0.2,
+  recode_min_sample: 60,
   keep: { importance: 3.5, discrimination: 3.0, rwg: 0.7 },
   core_min: 8,
   core_max: 14,
@@ -72,7 +78,9 @@ const SOP_BASE = {
 };
 /** Versioned policy sets (spec §6.1 B0). The run snapshot locks one of them. */
 export const POLICIES: Record<string, Policy> = {
-  'sop-c': { id: 'sop-c', version: 1, rigor: 'C', ...SOP_BASE },
+  // v2 (decision of 20/11/2026): core of 6–14 at level C. On 35 real postings per role, Sonnet seats find about six
+  // competencies important for the whole role (x̄ ≥ 3.5); levels A and B keep 8–14
+  'sop-c': { id: 'sop-c', version: 2, rigor: 'C', ...SOP_BASE, core_min: 6, thresholds_status: 'theo chuẩn SOP; mức C: tập lõi tối thiểu 6 (quyết định 20/11/2026)' },
   'sop-b': { id: 'sop-b', version: 1, rigor: 'B', ...SOP_BASE, allow_jd_only: false },
   'sop-a': { id: 'sop-a', version: 1, rigor: 'A', ...SOP_BASE, allow_jd_only: false },
   /** For development and demos with a handful of JDs: same formulas, relaxed counts; never above the Internal tier. */

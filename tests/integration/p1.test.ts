@@ -64,9 +64,10 @@ describe('P1 · bước code trước AI và gọi theo lô', () => {
     // model policy §12.5: Haiku and Sonnet only, low effort
     expect(calls().every((c) => c.effort === 'low')).toBe(true);
     expect(calls().every((c) => /haiku|sonnet/.test(c.model))).toBe(true);
-    expect(calls().filter((c) => ['E6.indicator_write', 'E9.recode'].includes(c.taskId)).every((c) => /sonnet/.test(c.model))).toBe(true);
-    // level C (this policy): the auditor runs on Haiku; Opus is kept for levels A/B, where (31) decides the tier
-    expect(calls().filter((c) => c.taskId === 'E8.audit_review').every((c) => /haiku/.test(c.model))).toBe(true);
+    // level C (this policy, decision of 20/11/2026 — A1): the checkers run on Sonnet (E9, the seats of E7 and E10, the
+    // auditor E8), the indicator writer E6 on Haiku so it differs from the seats (2); Opus is kept for levels A/B
+    expect(calls().filter((c) => ['E9.recode', 'E7.retranslation', 'E10.seat_score', 'E8.audit_review'].includes(c.taskId)).every((c) => /sonnet/.test(c.model))).toBe(true);
+    expect(calls().filter((c) => c.taskId === 'E6.indicator_write').every((c) => /haiku/.test(c.model))).toBe(true);
   });
 
   it('chạy lại cùng bộ JD không phát sinh lời gọi mới; ma trận đặt danh sách năng lực ở system prompt', async () => {

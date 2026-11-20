@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_AGENT_CONFIG } from '@cl/agents';
 import { QUOTA_PATTERN, parseQuotaReset } from '@cl/agents';
 import { BlockGuard, budgetFrom, estimateRun, inputLimitFor, inputTokensFromChars, t8InputTokens, usageTokens } from '@cl/pipeline';
 
@@ -73,5 +74,14 @@ describe('BlockGuard', () => {
     const g = new BlockGuard('B1', undefined, 20);
     for (let i = 0; i < 30; i++) g.before('T1', 100);
     expect(() => g.before('T1', 100)).toThrow(expect.objectContaining({ code: 'ANOMALY_CALLS' }));
+  });
+});
+
+describe('estimate on a run snapshot taken before a task existed (20/11/2026)', () => {
+  it('falls back to the default config instead of crashing the session page', () => {
+    const old = { ...DEFAULT_AGENT_CONFIG, tasks: Object.fromEntries(Object.entries(DEFAULT_AGENT_CONFIG.tasks).filter(([k]) => k !== 'E4M' && k !== 'E6L')) } as typeof DEFAULT_AGENT_CONFIG;
+    const e = estimateRun({ jds: 35 }, old);
+    expect(e.blocks.find((b) => b.block === 'B3')!.tasks.find((t) => t.task === 'E4M')!.usd).toBeGreaterThan(0);
+    expect(e.blocks.find((b) => b.block === 'B6')!.tasks.some((t) => t.task === 'E6L')).toBe(true);
   });
 });

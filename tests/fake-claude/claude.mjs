@@ -215,6 +215,10 @@ Object.assign(handlers, {
     for (const c of i.clusters) byLabel.set(norm(c.label), [...(byLabel.get(norm(c.label)) ?? []), c]);
     return { merges: [...byLabel.values()].filter((cs) => cs.length > 1).map((cs) => ({ cluster_ids: cs.map((c) => c.id), canonical_id: cs[0].id })) };
   },
+  'E6L.outcome_link'(i) {
+    // every competency serves the first outcome
+    return { links: i.competencies.map((c) => ({ competency_id: c.id, outcome_ids: i.outcomes.length ? [i.outcomes[0].id] : [] })) };
+  },
   'E5.task_matrix'(i) {
     return {
       rows: i.tasks.map((t) => {

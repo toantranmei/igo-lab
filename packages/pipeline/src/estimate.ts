@@ -1,5 +1,5 @@
 import { MAIN_BLOCK_IDS, type BlockId } from '@cl/contract';
-import { DEFAULT_AGENT_CONFIG, TASKS, priceOf, type AgentConfig, type TaskName } from '@cl/agents';
+import { DEFAULT_AGENT_CONFIG, MODELS, TASKS, priceOf, type AgentConfig, type TaskName } from '@cl/agents';
 
 /**
  * Pre-run estimate of agent calls and tokens per block, computed by code from what is known.
@@ -18,7 +18,8 @@ export const CHARS_PER_TOKEN = 1.6;
  * the K7/K8 cuts; task ≈ 80; candidate ≈ 160; competency in a list ≈ 165) and are replaced by measurements of the P1
  * acceptance run. System prompts are ≈ 1 500 characters.
  */
-const SIZE = { jd: 1600, task: 80, cand: 200, comp: 165, ind: 120, compBrief: 600, auditItem: 900, system: 1500 };
+// jd: 1 995 characters on average over 35 real postings (tinixai dataset, 20/11/2026); was 1 600 from sample JDs
+const SIZE = { jd: 2000, task: 80, cand: 200, comp: 165, ind: 120, compBrief: 600, auditItem: 900, system: 1500 };
 /**
  * Output tokens per item. jd/cluster/row/score from the 16/11 run; compInd, vote and audit measured on the first P1
  * run (19/11/2026, 4 valid JD, 11 core, 60 indicators): E6 ≈ 890 per competency, E7 ≈ 140 per indicator vote,
@@ -95,7 +96,9 @@ export function estimateRun(b: EstimateBasis, config: AgentConfig = DEFAULT_AGEN
   const baseCompetencies = b.baseCompetencies ?? 0;
   const t = (task: TaskName, calls: number, inChars: number, outTokens: number): TaskEstimate => {
     const input = calls ? inTokens(inChars) : 0, output = calls ? outTokens : 0;
-    const model = task === 'E7' || task === 'E10' ? config.seats[0]?.model ?? config.tasks[task].model : config.tasks[task].model;
+    // a run snapshot taken before a task existed (E4M, E6L, 20/11/2026) has no entry for it: the default config answers
+    const taskModel = (config.tasks[task] ?? DEFAULT_AGENT_CONFIG.tasks[task])?.model ?? MODELS.sonnet;
+    const model = task === 'E7' || task === 'E10' ? config.seats[0]?.model ?? taskModel : taskModel;
     const [pi, po] = priceOf(model);
     const usd = Math.round(((calls * (input * pi + output * po)) / 1e6) * 10000) / 10000;
     return { task, task_id: TASKS[task].id, calls, tokens_per_call: input + output, input_per_call: input, output_per_call: output, tokens: calls * (input + output), usd };
@@ -118,11 +121,11 @@ export function estimateRun(b: EstimateBasis, config: AgentConfig = DEFAULT_AGEN
     B1: [t('E1', e1, Math.min(BATCH, jds * SIZE.jd), Math.ceil((jds / Math.max(1, e1)) * OUT.jd))],
     // the occupation list rides on the first E23 call; spread over the calls so the total is right
     B2: [t('E23', e23, Math.min(BATCH, rawTasks * SIZE.task) + (e23 ? Math.ceil(23000 / e23) : 0), 300)],
-    B3: [t('E4', e4, Math.min(BATCH - 2600, Math.ceil((candidates * SIZE.cand) / Math.max(1, e4))) + 2600, Math.ceil((candidates / Math.max(1, e4)) * OUT.cluster)), t('E4M', e4merge * 2, Math.ceil((groups * 230) / e4merge), Math.ceil((groups * 8) / e4merge)), t('E9', candidates ? 1 : 0, Math.min(BATCH, Math.ceil(candidates * 0.2) * 160 + groups * SIZE.comp), Math.ceil(candidates * 0.2) * 10)],
+    B3: [t('E4', e4, Math.min(BATCH - 2600, Math.ceil((candidates * SIZE.cand) / Math.max(1, e4))) + 2600, Math.ceil((candidates / Math.max(1, e4)) * OUT.cluster)), t('E4M', e4merge * 2, Math.ceil((groups * 230) / e4merge), Math.ceil((groups * 8) / e4merge)), t('E9', candidates ? 1 : 0, Math.min(34000, Math.max(Math.ceil(candidates * 0.2), Math.min(candidates, 60)) * 160 + groups * SIZE.comp), Math.max(Math.ceil(candidates * 0.2), Math.min(candidates, 60)) * 12)],
     B4: [t('T7', events, 2000, 300)],
     B5: [t('E5', e5, Math.min(4500, selected * SIZE.comp) + 25 * 120, 25 * OUT.row), t('E10', seats * Math.max(1, Math.ceil((kept * 500) / BATCH)), Math.min(BATCH, kept * 500), kept * OUT.score)],
     // E6: the rewrite round adds calls but only rewrites failed indicators (≈ 10% of the output, P1 run)
-    B6: [t('E6', Math.ceil(e6 * 1.3), Math.min(BATCH, selected * SIZE.compBrief), Math.ceil((selected * OUT.compInd * 1.1) / Math.ceil(e6 * 1.3))), t('E7', seats * 2, selected * 3 * 4 * SIZE.ind / 3 + selected * SIZE.comp, Math.ceil((selected * 5 * OUT.vote) / 2))],
+    B6: [t('E6', Math.ceil(e6 * 1.3), Math.min(BATCH, selected * SIZE.compBrief), Math.ceil((selected * OUT.compInd * 1.1) / Math.ceil(e6 * 1.3))), t('E6L', selected > 1 ? 1 : 0, selected * 200 + 600, selected * 25), t('E7', seats * 2, selected * 3 * 4 * SIZE.ind / 3 + selected * SIZE.comp, Math.ceil((selected * 5 * OUT.vote) / 2))],
     B7: [t('E8', e8, Math.min(BATCH, Math.ceil(auditChars / e8)), OUT.audit)],
     B8: [],
     FAST: [],
@@ -150,7 +153,8 @@ export function basisFromPrev(jds: number, prev: Partial<Record<BlockId, Record<
     ...(b1?.jds ? { valid: (b1.jds as any[]).filter((j) => j.valid).length } : {}),
     ...(b2?.tasks ? { tasks: (b2.tasks as any[]).length } : {}),
     ...(b2?.raw_count != null ? { rawTasks: b2.raw_count } : {}),
-    ...(b3?.groups ? { groups: (b3.groups as any[]).filter((g) => g.decision !== 'NEEDS_REVIEW').length } : {}),
+    // every group goes on to B4–B7, NEEDS_REVIEW ones included (decision of 20/11/2026)
+    ...(b3?.groups ? { groups: (b3.groups as any[]).length } : {}),
     ...(b5?.selected ? { selected: (b5.selected as any[]).length } : {}),
   };
 }
