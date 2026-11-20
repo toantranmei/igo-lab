@@ -31,6 +31,12 @@ export function recencyD(postedAt: string | null | undefined, now: string): numb
 }
 /** SOP: only postings of the last 24 months are used; older ones are dropped before any AI call. */
 export const MAX_JD_AGE_MONTHS = 24;
+/**
+ * Postings from a public Hugging Face dataset carry no date; they count as posted within the last 24 months
+ * (decision of 20/11/2026), at the most cautious recency of that window: D = 1. Pasted text without a date keeps D = 0.
+ */
+export const DATASET_UNDATED_D = 1;
+export const isDatasetSource = (kind: string, sourceRef: string) => kind === 'dataset' || /^(hf:|dataset:)/i.test(sourceRef) || /^https:\/\/huggingface\.co\/datasets\//i.test(sourceRef);
 /** Months between the posting date and `now`, or null when the date is missing or unreadable. */
 export function ageMonths(postedAt: string | null | undefined, now: string): number | null {
   if (!postedAt || Number.isNaN(Date.parse(postedAt))) return null;

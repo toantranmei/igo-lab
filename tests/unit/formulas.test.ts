@@ -17,6 +17,10 @@ describe('Công thức P2 so với đáp án tính tay', () => {
     expect(F.recencyD('2026-08-01', '2026-11-18')).toBe(3);
     expect(F.recencyD('2025-06-01', '2026-11-18')).toBe(1);
     expect(F.recencyD(null, '2026-11-18')).toBe(0); // no posting date: kept, lowest recency
+    // a Hugging Face dataset row without a date counts as posted within 24 months (decision of 20/11/2026)
+    expect(F.isDatasetSource('paste', 'https://huggingface.co/datasets/dinhieufam/VietJobs @ea140511 · train · dòng 7682')).toBe(true);
+    expect(F.isDatasetSource('paste', 'https://example.com/job/1')).toBe(false);
+    expect(F.lensL(3, 3, F.DATASET_UNDATED_D, 2)).toBe(18);
     // SOP: postings older than 24 months are dropped
     expect(F.tooOld('2024-11-01', '2026-11-18')).toBe(true);
     expect(F.tooOld('2025-01-01', '2026-11-18')).toBe(false);

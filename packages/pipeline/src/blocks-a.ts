@@ -6,7 +6,7 @@ import type { CData, Rec } from '@cl/registry';
 import { BLOCK_META } from './meta';
 import { BATCH_CHARS, ShortIds, linesOf, maskedText, nearDuplicates, pack, precluster, prepareDoc, textSimilarity } from './prep';
 import { anchorOccupation, catalogLines, externalTasks, loadReference } from './occupation';
-import { ageMonths, MAX_JD_AGE_MONTHS, tooOld, cohenKappa, evidenceWeight, g1, lensL, lensM, libraryCoverage, marketScore, recencyD, reliabilityE, seedOf, seededShuffle, sourceRank, type Rank } from './formulas';
+import { ageMonths, DATASET_UNDATED_D, isDatasetSource, MAX_JD_AGE_MONTHS, tooOld, cohenKappa, evidenceWeight, g1, lensL, lensM, libraryCoverage, marketScore, recencyD, reliabilityE, seedOf, seededShuffle, sourceRank, type Rank } from './formulas';
 import { TraceBuilder, deviationGate, gate, pct, policyRef, ratio, round4, type BlockCtx, type BlockResult, type LoadedDoc, type SnapSegment } from './types';
 
 export const norm = (s: string) => s.toLowerCase().normalize('NFC').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
@@ -263,12 +263,13 @@ export async function runB1(ctx: BlockCtx): Promise<BlockResult> {
     const p = prepared.get(d.ref)!;
     // (5)–(7): A, B, C suggested by E1 (inherited by a near-duplicate); D from the posting date, E from the source kind
     const cr = v?.criteria ?? { A: 0, B: 0, C: 0 };
-    const D = recencyD(d.posted_at ?? null, ctx.now);
+    const undatedDataset = !d.posted_at && isDatasetSource(d.source_kind, d.source_ref);
+    const D = undatedDataset ? DATASET_UNDATED_D : recencyD(d.posted_at ?? null, ctx.now);
     const E = reliabilityE(d.source_kind, d.source_ref, d.source_url);
     const L = lensL(cr.A, cr.C, D, E);
     const M = lensM(cr.A, cr.B, cr.C, D, E);
     const rank = sourceRank(L, M);
-    if (ok) tb.calc({ substep: 'B1.rank', item_ref: d.ref, formula: 'L = 3A + 2C + D + E; M = 3B + 2C + D + E (A ≥ 2); hạng theo max(L, M) — (5)–(7); không rõ ngày đăng thì D = 0', inputs: { A: cr.A, B: cr.B, C: cr.C, D, E, posted_at: d.posted_at ?? null }, output: { L, M, rank } });
+    if (ok) tb.calc({ substep: 'B1.rank', item_ref: d.ref, formula: 'L = 3A + 2C + D + E; M = 3B + 2C + D + E (A ≥ 2); hạng theo max(L, M) — (5)–(7); không rõ ngày đăng thì D = 0, riêng tin từ dataset Hugging Face coi như trong 24 tháng (D = 1)', inputs: { A: cr.A, B: cr.B, C: cr.C, D, E, posted_at: d.posted_at ?? null, ...(undatedDataset ? { posted_at_assumed: '≤ 24 tháng (dataset)' } : {}) }, output: { L, M, rank } });
     return { ref: d.ref, name: d.original_name, parse_ok, criteria: { ...cr, D, E }, L, M, rank: ok ? rank : null, duplicate_of, near_duplicate_j: near?.j ?? null, has_source, verdict, reason_code: v?.reason_code ?? null, scope_segments: v?.scope_segments ?? [], valid: ok, why, posted_at: d.posted_at ?? null, too_old: old, origin_group: d.origin_group, cut_off_job: p.cut_off_job, cut_generic: p.cut_generic, masked: p.masked };
   });
   // what E1 extracted, handed to B2 (tasks) and B3 (candidates); only valid JDs count
