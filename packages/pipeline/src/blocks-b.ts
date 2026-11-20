@@ -4,7 +4,7 @@ import { appendEvent, hashJson, newId, sha256, t, verifyEventChain } from '@cl/d
 import { raiseStop, type CandidateItem, type CData, type IData, type RData, type VData, type WData, classify, semverOf, parseSemver, fmt as fmtSemver, bump as bumpSemver } from '@cl/registry';
 import { agentTracker, mergeSources, norm, segIndex, short, type LiveGroup, type LiveTask } from './blocks-a';
 import { BATCH_CHARS, ShortIds, maskedText, pack } from './prep';
-import { AUDIT_VARIABLES as AUDIT_VARIABLE_LIST, outcomeConstraint, sampleA, sampleB, themeClass, coreSet, fleissKappa, keepRule, medianLevel, retranslationRate, seedOf, seededShuffle, INDICATOR_LEVELS, indicatorCountOk, auditIndependent, auditSample, g7, releaseTier, reviewDate, TECH_FAMILY } from './formulas';
+import { isDatasetSource, AUDIT_VARIABLES as AUDIT_VARIABLE_LIST, outcomeConstraint, sampleA, sampleB, themeClass, coreSet, fleissKappa, keepRule, medianLevel, retranslationRate, seedOf, seededShuffle, INDICATOR_LEVELS, indicatorCountOk, auditIndependent, auditSample, g7, releaseTier, reviewDate, TECH_FAMILY } from './formulas';
 import { TraceBuilder, deviationGate, gate, pct, policyRef, ratio, round4, sopGate, type BlockCtx, type BlockResult } from './types';
 
 const median = (xs: number[]) => {
@@ -563,6 +563,9 @@ export async function runB7(ctx: BlockCtx): Promise<BlockResult> {
     { name: 'Fleiss κ xếp lớp', value: String(b6?.fleiss?.kappa ?? '—') },
     { name: 'coverage cuối', value: pct(finalCov) },
     { name: 'sự kiện thật', value: String(s.events.length) },
+    // E8 judged collection_method FAIL for a JD-only run that the policy allows (20/11/2026): state what was collected
+    // and what the policy asks, so the variable is scored against the policy
+    { name: 'phương pháp thu thập', value: `${ctx.prev.B1?.valid ?? 0} JD hợp lệ (${ctx.docs.filter((d) => isDatasetSource(d.source_kind, d.source_ref)).length} từ dataset công khai, ${ctx.docs.filter((d) => !isDatasetSource(d.source_kind, d.source_ref) && (d.source_url || /^https?:/i.test(d.source_ref))).length} có URL); nghề chuẩn ngoài: ${ctx.prev.B2?.occupation_code && ctx.prev.B2.occupation_code !== 'UNVERIFIED' ? `có (VSCO ${ctx.prev.B2.occupation_code}, O*NET)` : 'không'}; sự kiện thật: ${s.events.length}; policy ${policyRef(s.policy)}: ${s.policy.allow_jd_only ? 'cho phép khung chỉ dựa trên JD, sự kiện thật không bắt buộc' : 'đòi có sự kiện thật'}` },
   ];
   // every E8 call also carries the gate results, the stats and (first call) the re-check sample: leave room for them
   // The main call carries the gate results, the stats and the re-check sample and scores the ten variables; side
