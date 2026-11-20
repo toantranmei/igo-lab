@@ -184,15 +184,18 @@ describe('dây chuyền Live với CLI giả', () => {
     const r = await publish(two.sessionId);
     const d = await loadDictionary(db, WS, r.release_id);
     expect(d.C.find((c) => c.data.label === 'Ưu tiên backlog')!.version).toBe(2);
-    // P3.7: no framework of the new release uses it any more → Deprecated (a new version, nothing deleted)
+    // decision of 20/11/2026: the unsure match (NEEDS_REVIEW) still competes in B5–B7 as the nearest base competency;
+    // it is flagged for the reviewer and, undecided, stays in the new framework at its base version (no change written)
     const wtc = d.C.find((c) => c.data.label === 'Viết tiêu chí nghiệm thu')!;
-    expect(wtc.version).toBe(2);
-    expect(wtc.data.status).toBe('DEPRECATED');
+    expect(items.find((i) => i.action === 'NEEDS_REVIEW')!.id).toBe(wtc.id);
+    expect(wtc.version).toBe(1);
+    expect(wtc.data.status).toBe('ACTIVE');
     // (38): a new definition is D → MAJOR
     expect(d.C.find((c) => c.data.label === 'Ưu tiên backlog')!.data as any).toMatchObject({ semver: '2.0.0' });
     // the 1.0 frame still locks competency@1
     expect(d.RAll[0].data.requirements.find((q) => q.competency_id === u.id)!.competency_version).toBe(1);
-    expect(d.RAll[1].data.requirements.map((q) => q.competency_id)).toEqual([u.id]);
+    expect(d.RAll[1].data.requirements.map((q) => q.competency_id).sort()).toEqual([u.id, wtc.id].sort());
+    expect(d.RAll[1].data.requirements.find((q) => q.competency_id === wtc.id)!.competency_version).toBe(1);
   });
 
   it('commit nguyên khối, base đổi, bỏ từng mục', async () => {

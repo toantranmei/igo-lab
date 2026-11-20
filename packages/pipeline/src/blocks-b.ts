@@ -12,7 +12,13 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 const labelOf = (g: LiveGroup) => ({ id: g.competency_id, label: g.label, definition: g.definition });
-const usable = (ctx: BlockCtx) => (ctx.prev.B3!.groups as LiveGroup[]).filter((g) => g.decision !== 'NEEDS_REVIEW');
+/**
+ * Every B3 group goes on to B4–B7 (decision of 20/11/2026). A NEEDS_REVIEW group carries the id of the nearest base
+ * competency, so it competes as that competency; B8 flags it for the reviewer, and the commit keeps the base version
+ * unless the reviewer decides otherwise (registry effectiveItems). Before, such groups were left out of the core:
+ * Project Manager lost its two strongest competencies (14 and 7 JDs) to an unsure dictionary match.
+ */
+const usable = (ctx: BlockCtx) => ctx.prev.B3!.groups as LiveGroup[];
 
 export async function runB4(ctx: BlockCtx): Promise<BlockResult> {
   const s = ctx.snapshot;
@@ -633,6 +639,8 @@ export async function runB8(ctx: BlockCtx): Promise<BlockResult> {
   const allGroups = ctx.prev.B3!.groups as LiveGroup[];
   const groups = allGroups.filter((g) => final.has(g.competency_id));
   const review = allGroups.filter((g) => !final.has(g.competency_id));
+  // accepted groups whose dictionary match E4 was unsure of: in the framework as the nearest base competency, flagged
+  const unsureMatch = groups.filter((g) => g.decision === 'NEEDS_REVIEW' && g.base_version != null);
   const tasks = ctx.prev.B2!.tasks as LiveTask[];
   const b5 = ctx.prev.B5!;
   const inds = (ctx.prev.B6!.indicators as any[]).filter((x) => x.pass && final.has(x.competency_id));
@@ -734,6 +742,7 @@ export async function runB8(ctx: BlockCtx): Promise<BlockResult> {
     })),
   };
   items.push({ item_id: `R:${rId}`, entity: 'R', id: rId, action: rCur ? 'UPDATE' : 'ADD', name: `Khung ${s.session.role_title}`, before: rCur ? `v${rCur.data.version_label} · ${rCur.data.requirements.length} năng lực` : null, after: `${rData.requirements.length} năng lực`, reason: rCur ? 'Lượt mới tạo phiên bản khung mới; phiên bản cũ giữ nguyên.' : 'Khung đầu tiên của role này.', affected: [], base_version: rCur?.version ?? null, data: rData, depends_on: null, evidence_refs: [] });
+  for (const g of unsureMatch) items.push({ item_id: `C:${g.competency_id}:review`, entity: 'C', id: g.competency_id, action: 'NEEDS_REVIEW', name: g.label, before: g.base_definition, after: g.definition, reason: `Đã qua B5–B7 như năng lực ${g.base_label ?? g.competency_id} của từ điển nền; E4 chưa chắc cùng nội hàm. Mặc định giữ bản nền; người duyệt xác nhận dùng lại hoặc tách thành năng lực mới.`, affected: [], base_version: g.base_version, data: null, depends_on: null, evidence_refs: g.segment_ids });
   for (const g of review) items.push({ item_id: `C:${g.competency_id}:review`, entity: 'C', id: g.competency_id, action: 'NEEDS_REVIEW', name: g.label, before: g.base_definition, after: g.definition, reason: g.decision === 'NEEDS_REVIEW' ? 'E4 không đủ chắc để chọn REUSE/UPDATE/ADD.' : 'Chưa qua độ phủ hoặc dịch ngược.', affected: [], base_version: g.base_version, data: null, depends_on: null, evidence_refs: g.segment_ids });
   tb.beat('READ', 'Dựng bản ghi I, V, W, R đi kèm', { formula: 'hồ sơ = C + I + V + W + R', substitution: ['C', 'I', 'V', 'W', 'R'].map((k) => `${k}: ${items.filter((i) => i.entity === k && i.action !== 'NEEDS_REVIEW').length}`).join(' · '), set: { 'mục hồ sơ': items.filter((i) => i.action !== 'NEEDS_REVIEW').length, 'cần xem lại': review.length } });
 
