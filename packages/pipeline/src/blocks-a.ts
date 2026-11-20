@@ -585,17 +585,17 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
       }
       tb.beat('READ', 'Duyệt cụm ứng viên và so từ điển (E4)', { formula: 'cụm = cụm sơ bộ − gộp; quyết định cho cụm có năng lực gần giống', substitution: `${r.output.merges.length} lần gộp · ${r.output.matches.length} quyết định`, source: r.source });
     }
-    // Merges were only possible inside one batch: synonyms that fell into different batches are still apart. One
-    // merge-only pass sees every cluster at once (name, short definition, aliases; no dictionary, no O*NET list).
-    if (chunks.length > 1 && index.size > 1) {
+    // E4 merges only clusters of the same meaning, inside one batch. E4M (Sonnet) then sees every cluster at once and
+    // merges to the grain of a framework competency: skill-level variants of one competency, wherever they fell.
+    if (index.size > 1) {
       const heads = [...index.values()].sort((a, b) => norm(canonOf(a).label).localeCompare(norm(canonOf(b).label)));
       // compact (name + 80 characters of definition) so the whole list fits one call and every pair can meet
       const passes = pack(heads, (c) => canonOf(c).label.length + Math.min(80, canonOf(c).definition.length) + 30, BATCH_CHARS());
       const merged = await Promise.all(
         passes.map(async (part) => {
           const ids = new ShortIds();
-          const clusters = part.map((c) => ({ id: ids.short('k', c.id), label: canonOf(c).label, definition: short(canonOf(c).definition, 80), aliases: [], near: [] }));
-          return { ids, r: await ag.run('E4', { clusters, external_tasks: [] }) };
+          const clusters = part.map((c) => ({ id: ids.short('k', c.id), label: canonOf(c).label, definition: short(canonOf(c).definition, 80) }));
+          return { ids, r: await ag.run('E4M', { role_title: s.session.role_title, clusters }) };
         }),
       );
       let n = 0;
@@ -608,8 +608,9 @@ export async function runB3(ctx: BlockCtx): Promise<BlockResult> {
           // the head keeps its own dictionary decision; O*NET support is pooled
           for (const c of cids) if (c !== head) (index.get(head)!.members.push(...index.get(c)!.members), index.delete(c), extOf.set(head, new Set([...(extOf.get(head) ?? []), ...(extOf.get(c) ?? [])])), matchOf.has(head) || !matchOf.has(c) ? null : matchOf.set(head, matchOf.get(c)!));
         }
-      clusterSource = mergeSources('E4.candidate_review', [...results.map((x) => x.r.source), ...merged.map((x) => x.r.source)]);
-      tb.beat('READ', 'Gộp đồng nghĩa giữa các lô (E4)', { formula: 'cụm = cụm − gộp; một lượt nhìn toàn bộ danh sách cụm', substitution: `${heads.length} cụm → ${index.size} cụm (${n} lần gộp)`, source: clusterSource, explanation: 'E4 chỉ gộp được các cụm cùng lô; lượt này gộp các tên đồng nghĩa nằm ở các lô khác nhau.' });
+      const mergeSource = mergeSources('E4M.granularity_merge', merged.map((x) => x.r.source));
+      clusterSource = mergeSources('E4.candidate_review', [...results.map((x) => x.r.source), mergeSource]);
+      tb.beat('READ', 'Gộp về mức năng lực của khung (E4M)', { formula: 'cụm = cụm − gộp; một lượt nhìn toàn bộ danh sách cụm', substitution: `${heads.length} cụm → ${index.size} cụm (${n} lần gộp)`, source: mergeSource, explanation: 'E4 chỉ gộp cụm cùng nội hàm trong một lô; lượt này gộp các biến thể chi tiết (kỹ năng con, công cụ, ngành) của cùng một năng lực, ở mọi lô.' });
     }
     cls = [...index.values()];
   }

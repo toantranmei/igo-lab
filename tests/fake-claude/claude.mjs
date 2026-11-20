@@ -209,6 +209,12 @@ Object.assign(handlers, {
     const support = (i.external_tasks ?? []).length && i.clusters.length ? [{ cluster_id: i.clusters[0].id, task_ids: i.external_tasks.slice(0, 2).map((x) => x.id) }] : [];
     return { support, merges, matches };
   },
+  'E4M.granularity_merge'(i) {
+    // same rule as the fake E4: clusters with the same name are one competency
+    const byLabel = new Map();
+    for (const c of i.clusters) byLabel.set(norm(c.label), [...(byLabel.get(norm(c.label)) ?? []), c]);
+    return { merges: [...byLabel.values()].filter((cs) => cs.length > 1).map((cs) => ({ cluster_ids: cs.map((c) => c.id), canonical_id: cs[0].id })) };
+  },
   'E5.task_matrix'(i) {
     return {
       rows: i.tasks.map((t) => {

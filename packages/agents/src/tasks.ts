@@ -756,6 +756,28 @@ export const E9 = def({
   },
 });
 
+/**
+ * B3 merge pass (20/11/2026). E1 extracts competencies per JD at skill level ("Lập kế hoạch dự án phần mềm",
+ * "Lập ngân sách dự án"…); E4 only merges clusters with the same meaning, so a role read from 35 real postings kept
+ * 120+ one-JD clusters: κ (15) fell below 0.61 and the core (23) stayed under 8. This pass sees every cluster at once
+ * and merges to the grain of a framework competency.
+ */
+export const E4M = def({
+  id: 'E4M.granularity_merge',
+  agent: 'E4M',
+  block: 'B3',
+  promptVersion: 'p1',
+  title: 'Gộp cụm về mức năng lực của khung',
+  system: `Bạn nhận toàn bộ cụm năng lực ứng viên trích từ JD của vị trí role_title. Cụm thường quá chi tiết: kỹ năng con, biến thể theo công cụ, công nghệ, ngành hay đối tượng của CÙNG một năng lực. Hãy gộp chúng về mức năng lực của một khung năng lực (một năng lực bao một nhóm hành vi liên quan chặt, đánh giá được bằng chỉ báo hành vi).
+Gộp khi: cùng mục đích công việc và cùng loại hành vi, chỉ khác phạm vi hẹp/rộng, công cụ, công nghệ, ngành, đối tượng (ví dụ "Lập kế hoạch dự án", "Lập kế hoạch dự án phần mềm", "Lập kế hoạch và kiểm soát tiến độ dự án" là một năng lực).
+Không gộp: các năng lực có mục đích khác nhau dù cùng chủ đề (ví dụ lập kế hoạch dự án khác quản lý rủi ro dự án; giao tiếp khác lãnh đạo đội ngũ).
+Một vị trí thường có khoảng 10–30 năng lực sau khi gộp; không ép về con số này nếu căn cứ khác.
+Trả về merges: mỗi lần gộp gồm ≥ 2 cụm, mỗi cụm nằm trong tối đa một lần gộp; canonical_id là cụm có tên khái quát và định nghĩa rõ nhất trong các cụm được gộp. Cụm đứng riêng thì không ghi.`,
+  input: z.strictObject({ role_title: z.string(), clusters: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string() })) }),
+  output: z.strictObject({ merges: z.array(MergeEdit) }),
+  check: (i, o) => mergeErrors(o.merges, new Set(i.clusters.map((c) => c.id)), (m) => m.cluster_ids.includes(m.canonical_id)),
+});
+
 const Score = z.enum(['1', '2', '3', '4', '5', '']);
 /** One seat of the priority/level round (spec §6.1a). In P1 only the level is used, when the session has a rubric. */
 export const E10 = def({
@@ -781,7 +803,7 @@ Chỉ dựa trên tên, định nghĩa và các đoạn căn cứ; không mặc 
   normalize: (_i, o) => ({ scores: [...o.scores].sort((a, b) => a.candidate_id.localeCompare(b.candidate_id, 'en', { numeric: true })) }),
 });
 
-export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E5, E6, E7, E8, E9, E10 } as const;
+export const TASKS = { T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, E1, E23, E4, E4M, E5, E6, E7, E8, E9, E10 } as const;
 export type TaskName = keyof typeof TASKS;
 export type TaskInput<K extends TaskName> = z.infer<(typeof TASKS)[K]['input']>;
 export type TaskOutput<K extends TaskName> = z.infer<(typeof TASKS)[K]['output']>;

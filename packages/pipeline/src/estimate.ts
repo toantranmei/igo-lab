@@ -104,8 +104,8 @@ export function estimateRun(b: EstimateBasis, config: AgentConfig = DEFAULT_AGEN
   const e23 = rawTasks > 1 ? callsFor(rawTasks, SIZE.task) : 0;
   // each E4 call also carries the ≤ 20 O*NET tasks of the anchored occupation (≈ 2 600 characters)
   const e4 = candidates > 1 || baseCompetencies ? Math.max(1, Math.ceil((candidates * SIZE.cand) / (BATCH - 2600))) : 0;
-  // more than one batch → one merge-only pass over every cluster (synonyms split across batches)
-  const e4merge = e4 > 1 ? Math.max(1, Math.ceil((groups * 220) / BATCH)) : 0;
+  // one E4M pass over every cluster (merge to the grain of a framework competency)
+  const e4merge = Math.max(1, Math.ceil((groups * 220) / BATCH));
   // E5 runs after the seats chose the core, so its list is the ≤ 14 core competencies (one part)
   const listParts = Math.max(1, Math.ceil((selected * SIZE.comp) / 4500));
   const e5 = selected ? Math.ceil(tasks / 25) * listParts : 0;
@@ -118,7 +118,7 @@ export function estimateRun(b: EstimateBasis, config: AgentConfig = DEFAULT_AGEN
     B1: [t('E1', e1, Math.min(BATCH, jds * SIZE.jd), Math.ceil((jds / Math.max(1, e1)) * OUT.jd))],
     // the occupation list rides on the first E23 call; spread over the calls so the total is right
     B2: [t('E23', e23, Math.min(BATCH, rawTasks * SIZE.task) + (e23 ? Math.ceil(23000 / e23) : 0), 300)],
-    B3: [t('E4', e4, Math.min(BATCH - 2600, Math.ceil((candidates * SIZE.cand) / Math.max(1, e4))) + 2600, Math.ceil((candidates / Math.max(1, e4)) * OUT.cluster)), t('E4', e4merge, Math.min(BATCH, groups * 220), groups * 8), t('E9', candidates ? 1 : 0, Math.min(BATCH, Math.ceil(candidates * 0.2) * 160 + groups * SIZE.comp), Math.ceil(candidates * 0.2) * 10)],
+    B3: [t('E4', e4, Math.min(BATCH - 2600, Math.ceil((candidates * SIZE.cand) / Math.max(1, e4))) + 2600, Math.ceil((candidates / Math.max(1, e4)) * OUT.cluster)), t('E4M', e4merge, Math.min(BATCH, groups * 220), groups * 8), t('E9', candidates ? 1 : 0, Math.min(BATCH, Math.ceil(candidates * 0.2) * 160 + groups * SIZE.comp), Math.ceil(candidates * 0.2) * 10)],
     B4: [t('T7', events, 2000, 300)],
     B5: [t('E5', e5, Math.min(4500, selected * SIZE.comp) + 25 * 120, 25 * OUT.row), t('E10', seats * Math.max(1, Math.ceil((kept * 500) / BATCH)), Math.min(BATCH, kept * 500), kept * OUT.score)],
     // E6: the rewrite round adds calls but only rewrites failed indicators (≈ 10% of the output, P1 run)

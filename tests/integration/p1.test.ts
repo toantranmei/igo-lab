@@ -60,7 +60,7 @@ describe('P1 · bước code trước AI và gọi theo lô', () => {
     expect(JSON.parse((await db.select().from(t.agentResult).where(eq(t.agentResult.taskId, 'E1.jd_read')))[0].inputCanonical).jds).toHaveLength(2);
     // the whole B0–B8 line: a handful of calls, each well under the 8 000-token input limit (the guard would have stopped it)
     expect(calls().length).toBeLessThanOrEqual(16);
-    expect(new Set(calls().map((c) => c.taskId))).toEqual(new Set(['E1.jd_read', 'E23.task_review', 'E4.candidate_review', 'E9.recode', 'E5.task_matrix', 'E10.seat_score', 'E6.indicator_write', 'E7.retranslation', 'E8.audit_review']));
+    expect(new Set(calls().map((c) => c.taskId))).toEqual(new Set(['E1.jd_read', 'E23.task_review', 'E4.candidate_review', 'E4M.granularity_merge', 'E9.recode', 'E5.task_matrix', 'E10.seat_score', 'E6.indicator_write', 'E7.retranslation', 'E8.audit_review']));
     // model policy §12.5: Haiku and Sonnet only, low effort
     expect(calls().every((c) => c.effort === 'low')).toBe(true);
     expect(calls().every((c) => /haiku|sonnet/.test(c.model))).toBe(true);

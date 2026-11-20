@@ -43,12 +43,12 @@ const S = { model: MODELS.sonnet, effort: 'low' } as const;
  * except T7 (real events). T14/T15 scan external datasets and are unchanged.
  */
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
-  version: 'agents-3',
+  version: 'agents-4',
   tasks: {
     T1: H, T2: H, T3: H, T4: H, T5: H, T6: H, T7: H, T8: H, T9: H, T10: S, T11: H, T12: S, T13: H,
     T14: { model: MODELS.sonnet, effort: 'low' },
     T15: { model: MODELS.haiku, effort: 'medium' },
-    E1: H, E23: H, E4: H, E5: H, E6: S, E7: H, E8: { model: MODELS.opus, effort: 'low' }, E9: S, E10: H,
+    E1: H, E23: H, E4: H, E4M: S, E5: H, E6: S, E7: H, E8: { model: MODELS.opus, effort: 'low' }, E9: S, E10: H,
   },
   seats: [
     { seat: 'seat-1', ...H, role: 'Quản lý trực tiếp của vị trí', scale: '1–5 theo hậu quả nếu người giữ vị trí thiếu năng lực này: 1 không đáng kể … 5 công việc thất bại.' },
@@ -74,7 +74,7 @@ export const BLOCK_TASKS: Record<string, TaskName[]> = {
   B0: [],
   B1: ['E1'],
   B2: ['E23'],
-  B3: ['E4', 'E9'],
+  B3: ['E4', 'E4M', 'E9'],
   B4: ['T7'],
   B5: ['E5', 'E10'],
   B6: ['E6', 'E7'],
