@@ -522,6 +522,22 @@ export async function runB6(ctx: BlockCtx): Promise<BlockResult> {
     }
     tb.beat('READ', `Xét riêng ${thin0.length} kết quả có dưới 2 năng lực (E6L)`, { formula: 'liên kết ∪= E6L(kết quả mỏng, mọi năng lực đạt) — (30)', substitution: `${thin0.join(', ')}: thêm ${added} liên kết`, source: r.source, explanation: 'Lượt nhìn cả khung nối dè dặt; lượt này hỏi riêng từng kết quả còn mỏng: năng lực nào thật sự cần để đạt nó.' });
   }
+  // Unlinked competencies (21/11/2026), the mirror of the thin-outcome look: a passed core competency with no outcome
+  // gets one more E6L look, those competencies alone against every outcome (same prompt and rule). Seen on QA Engineer.
+  const unlinked0 = outcomeConstraint(outcomeLinks, passedC.map((g) => g.competency_id), outcomeList.map((o) => o.id)).unlinked;
+  if (unlinked0.length && outcomeList.length) {
+    const uIds = new ShortIds();
+    const r = await ag.run('E6L', { role_title: s.session.role_title, outcomes: outcomeList, competencies: passedC.filter((g) => unlinked0.includes(g.competency_id)).map((g) => ({ id: uIds.short('c', g.competency_id), label: g.label, definition: g.definition })) });
+    let added = 0;
+    for (const l of r.output.links) {
+      const cid = uIds.long(l.competency_id);
+      if (!cid) continue;
+      const before = outcomeLinks[cid] ?? [];
+      outcomeLinks[cid] = [...new Set([...before, ...l.outcome_ids])].sort();
+      added += outcomeLinks[cid].length - before.length;
+    }
+    tb.beat('READ', `Xét riêng ${unlinked0.length} năng lực chưa gắn kết quả (E6L)`, { formula: 'liên kết ∪= E6L(mọi kết quả, năng lực chưa gắn) — (30)', substitution: `${unlinked0.join(', ')}: thêm ${added} liên kết`, source: r.source, explanation: 'Lượt nhìn cả khung nối dè dặt; lượt này hỏi riêng năng lực còn chưa gắn: nó cần để đạt kết quả chính nào.' });
+  }
   const oc = outcomeConstraint(outcomeLinks, passedC.map((g) => g.competency_id), outcomeList.map((o) => o.id));
   if (outcomeList.length) tb.calc({ substep: 'B6.outcomes', formula: 'mỗi năng lực lõi gắn ≥ 1 kết quả ∧ mỗi kết quả có ≥ 2 năng lực — (30)', inputs: { outcomes: outcomeList.length, links: outcomeLinks }, output: oc });
   const kErrors = ks1.filter((x) => x.kind === 'ERROR');
