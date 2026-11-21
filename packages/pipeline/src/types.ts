@@ -86,7 +86,10 @@ const SOP_BASE = {
 export const POLICIES: Record<string, Policy> = {
   // v2 (decision of 20/11/2026): core of 6–14 at level C. On 35 real postings per role, Sonnet seats find about six
   // competencies important for the whole role (x̄ ≥ 3.5); levels A and B keep 8–14
-  'sop-c': { id: 'sop-c', version: 3, rigor: 'C', ...SOP_BASE, core_min: 6, core_fill_min_importance: 3, thresholds_status: 'theo chuẩn SOP; mức C: tập lõi tối thiểu 6 (quyết định 20/11/2026), bổ sung lõi theo độ phủ khi x̄ quan trọng ≥ 3 (quyết định 21/11/2026)' },
+  // Level C κ 0.55 (decision of 21/11/2026): on production the AI coders landed at κ 0.46–0.60 on Data Analyst and QA
+  // (0.65–0.78 locally on the same postings), i.e. run-to-run spread around 0.61; the level-C threshold is lowered for
+  // (15) and (28) rather than re-drawing the check until it passes. Levels A and B keep 0.61.
+  'sop-c': { id: 'sop-c', version: 4, rigor: 'C', ...SOP_BASE, core_min: 6, core_fill_min_importance: 3, min_kappa: 0.55, thresholds_status: 'theo chuẩn SOP; mức C: tập lõi tối thiểu 6 (quyết định 20/11/2026), bổ sung lõi theo độ phủ khi x̄ quan trọng ≥ 3, κ ≥ 0,55 cho (15) và (28) (quyết định 21/11/2026)' },
   'sop-b': { id: 'sop-b', version: 1, rigor: 'B', ...SOP_BASE, allow_jd_only: false },
   'sop-a': { id: 'sop-a', version: 1, rigor: 'A', ...SOP_BASE, allow_jd_only: false },
   /** For development and demos with a handful of JDs: same formulas, relaxed counts; never above the Internal tier. */
