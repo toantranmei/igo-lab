@@ -158,23 +158,37 @@ export async function toDictView(db: DbOrTx, workspaceId: string, d: Dictionary)
   const indicatorsOf = (cid: string) => d.I.filter((i) => i.data.competency_id === cid).map((i) => i.data.statement);
   const lockedC = new Map<string, Rec<CData>>();
   const lockedI = new Map<string, Rec<IData>>();
+  // Every framework version locks competency@version and indicator@version. The current ones come from the release;
+  // older versions are read in one query per kind (they were read one by one: with ten releases the state page made
+  // hundreds of sequential queries and took 50–100 s, 21/11/2026).
+  const needC = new Map<string, { id: string; version: number }>();
+  const needI = new Map<string, { id: string; version: number }>();
+  const curI = new Map(d.I.map((i) => [`${i.id}@${i.version}`, i]));
   for (const f of d.RAll)
     for (const q of f.data.requirements) {
       const ck = `${q.competency_id}@${q.competency_version}`;
-      if (!lockedC.has(ck)) {
-        const cur = cNow.get(q.competency_id);
-        const rec = cur && cur.version === q.competency_version ? cur : await loadRecord(db, workspaceId, 'C', q.competency_id, q.competency_version);
-        if (rec) lockedC.set(ck, rec);
-      }
+      const cur = cNow.get(q.competency_id);
+      if (cur && cur.version === q.competency_version) lockedC.set(ck, cur);
+      else needC.set(ck, { id: q.competency_id, version: q.competency_version });
       for (const ir of q.indicators) {
         const ik = `${ir.indicator_id}@${ir.version}`;
-        if (!lockedI.has(ik)) {
-          const cur = d.I.find((i) => i.id === ir.indicator_id && i.version === ir.version);
-          const rec = cur ?? (await loadRecord(db, workspaceId, 'I', ir.indicator_id, ir.version));
-          if (rec) lockedI.set(ik, rec);
-        }
+        const ci = curI.get(ik);
+        if (ci) lockedI.set(ik, ci);
+        else needI.set(ik, { id: ir.indicator_id, version: ir.version });
       }
     }
+  const loadOld = async (kind: 'C' | 'I', need: Map<string, { id: string; version: number }>, into: Map<string, Rec<any>>) => {
+    const ids = [...new Set([...need.values()].map((x) => x.id))];
+    for (let i = 0; i < ids.length; i += 500) {
+      const rows = await db.select().from(t.dictRecord).where(and(eq(t.dictRecord.workspaceId, workspaceId), eq(t.dictRecord.kind, kind), inArray(t.dictRecord.id, ids.slice(i, i + 500))));
+      for (const r of rows) {
+        const k = `${r.id}@${r.version}`;
+        if (need.has(k) && !into.has(k)) into.set(k, { kind, id: r.id, version: r.version, data: r.data, contentSha256: r.contentSha256, releaseId: r.releaseId });
+      }
+    }
+  };
+  await loadOld('C', needC, lockedC);
+  await loadOld('I', needI, lockedI);
   return {
     version: d.versionLabel,
     W: d.W.map((w) => ({ id: w.id, role: w.data.role_title, tasks: w.data.tasks.map((k) => ({ id: k.task_id, name: k.statement, weight: k.weight, competencies: k.competency_ids })) })),

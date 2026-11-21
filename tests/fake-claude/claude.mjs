@@ -258,7 +258,7 @@ Object.assign(handlers, {
     return { codes: i.sentences.map((s) => ({ sentence_id: s.id, code_ids: [(i.codes.find((c) => tagsOf(c.definition).some((t) => tagsOf(s.text).includes(t))) ?? { id: 'NONE' }).id] })) };
   },
   'E10.seat_score'(i) {
-    return { scores: i.candidates.map((c) => ({ candidate_id: c.id, importance: '4', discrimination: '4', level: '3' })) };
+    return { scores: i.candidates.map((c) => ({ candidate_id: c.id, importance: process.env.FAKE_E10_IMPORTANCE || '4', discrimination: '4', level: '3' })) };
   },
 });
 const h = handlers[taskId];

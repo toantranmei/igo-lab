@@ -140,7 +140,7 @@ export async function runB5(ctx: BlockCtx): Promise<BlockResult> {
         for (const batch of pack(order, (g) => g.label.length + g.definition.length + g.segment_ids.slice(0, 2).reduce((a, x) => a + Math.min(160, segs.get(x)?.seg.text.length ?? 0) + 8, 40), BATCH_CHARS())) {
           const ids = new ShortIds();
           const cands = batch.map((g) => ({ id: ids.short('c', g.competency_id), label: g.label, definition: g.definition, jd_share: `${g.jd_refs.length}/${validJd}`, segments: g.segment_ids.slice(0, 2).map((x) => ({ id: ids.short('s', x), text: short(maskedText(segs.get(x)?.seg.text ?? ''), 160) })) }));
-          const r = await ag.run('E10', { seat: seat.seat, seat_role: seat.role, scale_note: `${seat.scale}${s.rubric.length ? ` Bậc theo rubric: ${s.rubric.map((x) => `${x.level} = ${x.description}`).join('; ')}` : ''}`, role_title: s.session.role_title, candidates: cands }, { model: seat.model, effort: seat.effort });
+          const r = await ag.run('E10', { seat: seat.seat, seat_role: seat.role, scale_note: `${seat.scale}${s.rubric.length ? ` Bậc theo rubric: ${s.rubric.map((x) => `${x.level} = ${x.description}`).join('; ')}` : ''}`, role_title: s.session.role_title, purpose: s.session.purpose, outcomes: s.session.charter?.outcomes ?? [], candidates: cands }, { model: seat.model, effort: seat.effort });
           sources.push(r.source);
           const num = (v: string) => (v ? Number(v) : null);
           for (const x of r.output.scores) seatScores[si].set(ids.long(x.candidate_id)!, { importance: num(x.importance), discrimination: num(x.discrimination), level: num(x.level) });
@@ -170,35 +170,71 @@ export async function runB5(ctx: BlockCtx): Promise<BlockResult> {
     return { g, votes, ...k, keep, level, S, id: g.competency_id, from_survey: fromSurvey, respondents: new Set(sv.map((r) => r.respondent)).size };
   });
   const kept = scored.filter((x) => x.keep);
-  const core = coreSet(kept, s.policy.core_max ?? 14, s.policy.max_meta ?? 1);
+  const core = coreSet(kept, s.policy.core_max ?? 14, s.policy.max_meta ?? 1) as (typeof kept)[number][];
   const coreIds = new Set(core.map((x) => x.id));
   for (const x of scored) tb.beat('READ', `Ba ghế chấm · ${short(x.g.label, 40)}`, { refs: [x.id], formula: 'r_wg = max(0, 1 − s²/2) — (20); giữ theo (21); tập lõi theo (23)', substitution: `quan trọng ${x.votes.map((v) => v.importance ?? '—').join(', ')} → x̄ ${x.mean_importance}, s² ${x.variance}, r_wg ${x.rwg}; phân biệt x̄ ${x.mean_discrimination} → ${coreIds.has(x.id) ? 'vào lõi' : x.keep ? 'giữ, ngoài lõi (quá giới hạn)' : 'loại'}`, set: { 'giữ': kept.length, 'lõi': coreIds.size }, draft: [{ id: x.id, value: `${coreIds.has(x.id) ? '●' : x.keep ? '○' : '⊘'} ${short(x.g.label, 50)} · r_wg ${x.rwg}` }], source: seatSource });
-  const matrixGroups = groups.filter((g) => coreIds.has(g.competency_id));
   // E5 runs AFTER the seats chose the core (cost: the matrix only has the ≤ 14 core columns, not every candidate).
   // The core list is the same for every call, so it goes in the system prompt (cacheable). A list too long
   // for one call is cut into parts; every task batch is matched against every part and the rows are merged.
-  const compParts = pack(matrixGroups, (g) => g.label.length + g.definition.length + 30, Number(process.env.AGENT_MATRIX_LIST_CHARS || 4500));
-  const taskBatches = matrixGroups.length ? pack(tasks, (t) => t.statement.length + Math.min(160, segs.get(t.segment_ids[0] ?? '')?.seg.text.length ?? 0) + 40, BATCH_CHARS() - 4500, 25) : [];
-  const linkOf = new Map<string, { output: { links: { competency_id: string; segment_ids: string[] }[] }; sources: TraceSource[] }>();
-  await Promise.all(
-    compParts.flatMap((part) => {
-      const cIds = new ShortIds();
-      const competencies = part.map((g) => ({ id: cIds.short('c', g.competency_id), label: g.label, definition: g.definition }));
-      return taskBatches.map(async (batch) => {
-        const ids = new ShortIds();
-        const input = batch.map((t) => ({ id: ids.short('t', t.id), statement: t.statement, segments: t.segment_ids.slice(0, 2).map((x) => ({ id: ids.short('s', x), text: short(maskedText(segs.get(x)?.seg.text ?? ''), 160) })) }));
-        const r = await ag.run('E5', { competencies, tasks: input });
-        for (const row of r.output.rows) {
-          const tid = ids.long(row.task_id)!;
-          const cur = linkOf.get(tid) ?? { output: { links: [] }, sources: [] };
-          const segIdsLong = ids.longs(row.segment_ids);
-          for (const competency_id of cIds.longs(row.competency_ids)) cur.output.links.push({ competency_id, segment_ids: segIdsLong });
-          cur.sources.push(r.source);
-          linkOf.set(tid, cur);
-        }
-      });
-    }),
-  );
+  type Linked = { output: { links: { competency_id: string; segment_ids: string[] }[] }; sources: TraceSource[] };
+  const runMatrix = async (cols: LiveGroup[], rows: LiveTask[], into: Map<string, Linked>) => {
+    const parts = pack(cols, (g) => g.label.length + g.definition.length + 30, Number(process.env.AGENT_MATRIX_LIST_CHARS || 4500));
+    const batches = cols.length ? pack(rows, (t) => t.statement.length + Math.min(160, segs.get(t.segment_ids[0] ?? '')?.seg.text.length ?? 0) + 40, BATCH_CHARS() - 4500, 25) : [];
+    await Promise.all(
+      parts.flatMap((part) => {
+        const cIds = new ShortIds();
+        const competencies = part.map((g) => ({ id: cIds.short('c', g.competency_id), label: g.label, definition: g.definition }));
+        return batches.map(async (batch) => {
+          const ids = new ShortIds();
+          const input = batch.map((t) => ({ id: ids.short('t', t.id), statement: t.statement, segments: t.segment_ids.slice(0, 2).map((x) => ({ id: ids.short('s', x), text: short(maskedText(segs.get(x)?.seg.text ?? ''), 160) })) }));
+          const r = await ag.run('E5', { competencies, tasks: input });
+          for (const row of r.output.rows) {
+            const tid = ids.long(row.task_id)!;
+            const cur = into.get(tid) ?? { output: { links: [] }, sources: [] };
+            const segIdsLong = ids.longs(row.segment_ids);
+            for (const competency_id of cIds.longs(row.competency_ids)) cur.output.links.push({ competency_id, segment_ids: segIdsLong });
+            cur.sources.push(r.source);
+            into.set(tid, cur);
+          }
+        });
+      }),
+    );
+    return { parts: parts.length, batches: batches.length };
+  };
+  const linkOf = new Map<string, Linked>();
+  const m0 = await runMatrix(groups.filter((g) => coreIds.has(g.competency_id)), tasks, linkOf);
+  const compParts = { length: m0.parts };
+  const taskBatches = { length: m0.batches };
+  // Core fill by task coverage (decision of 21/11/2026, policy core_fill_min_importance): when the kept core covers
+  // less than min_coverage of the task weight, or is smaller than core_min, candidates the seats scored at least this
+  // high on importance (but below the keep rule) are added one at a time, the one covering the most uncovered task
+  // weight first, until both hold or core_max is reached. Cross-cutting work (collaboration, research, code review,
+  // documentation) was named in many postings yet scored 2–3 by the seats, leaving 20–37% of the task weight with no
+  // competency on five roles. Every added competency is marked "bổ sung để phủ nhiệm vụ"; the thresholds are unchanged.
+  const fillMin = s.policy.core_fill_min_importance;
+  const fillIds = new Set<string>();
+  const hasLink = (tid: string, set: Set<string>) => (linkOf.get(tid)?.output.links ?? []).some((x) => x.segment_ids.length && set.has(x.competency_id));
+  const covNow = () => ratio(round4(tasks.reduce((a, t) => a + (hasLink(t.id, coreIds) ? t.weight : 0), 0)), sumW) ?? 1;
+  const cminF = s.policy.core_min ?? 8, cmaxF = s.policy.core_max ?? 14;
+  if (fillMin != null && (covNow() < s.policy.min_coverage || core.length < cminF)) {
+    const pool = scored.filter((x) => !coreIds.has(x.id) && x.level != null && x.votes.filter((v) => v.importance != null).length >= 2 && x.mean_importance >= fillMin).sort((a, b) => b.mean_importance - a.mean_importance || b.S - a.S || a.id.localeCompare(b.id));
+    const open = tasks.filter((t) => !hasLink(t.id, coreIds));
+    if (pool.length && open.length) await runMatrix(pool.map((x) => x.g), open, linkOf);
+    const before = covNow();
+    const gain = (id: string) => round4(tasks.reduce((a, t) => a + (!hasLink(t.id, coreIds) && hasLink(t.id, new Set([id])) ? t.weight : 0), 0));
+    while (pool.length && core.length < cmaxF && (covNow() < s.policy.min_coverage || core.length < cminF)) {
+      const best = [...pool].sort((a, b) => gain(b.id) - gain(a.id) || b.mean_importance - a.mean_importance || a.id.localeCompare(b.id))[0];
+      const g0 = gain(best.id);
+      if (g0 === 0 && core.length >= cminF) break;
+      pool.splice(pool.indexOf(best), 1);
+      core.push(best);
+      coreIds.add(best.id);
+      fillIds.add(best.id);
+      tb.calc({ substep: 'B5.coverage_fill', item_ref: best.id, formula: `bổ sung ứng viên x̄_qt ≥ ${fillMin} phủ nhiều trọng số nhiệm vụ đang hở nhất, tới khi coverage ≥ ${pct(s.policy.min_coverage)} ∧ lõi ≥ ${cminF} (≤ ${cmaxF})`, inputs: { mean_importance: best.mean_importance, gain: g0 }, output: { core: core.length, coverage: covNow() }, decision: 'bổ sung để phủ nhiệm vụ' });
+    }
+    if (fillIds.size) tb.beat('READ', `Bổ sung ${fillIds.size} năng lực để phủ nhiệm vụ`, { refs: [...fillIds], formula: `thêm lần lượt ứng viên x̄_qt ≥ ${fillMin} phủ nhiều trọng số hở nhất`, substitution: `coverage ${pct(before)} → ${pct(covNow())}; lõi ${core.length - fillIds.size} → ${core.length}`, explanation: `Chưa đạt quy tắc giữ (21) nhưng được ba ghế chấm x̄ quan trọng ≥ ${fillMin} và phủ nhiệm vụ JD nêu mà tập lõi chưa phủ: ${core.filter((x) => fillIds.has(x.id)).map((x) => x.g.label).join(', ')}.`, set: { 'lõi': core.length } });
+  }
+  const matrixGroups = groups.filter((g) => coreIds.has(g.competency_id));
   if (compParts.length > 1) tb.beat('READ', `Danh sách năng lực chia ${compParts.length} phần`, { explanation: 'Một danh sách quá dài cho một lời gọi; mỗi lô nhiệm vụ được nối với từng phần rồi gộp lại.', formula: 'lời gọi = lô nhiệm vụ × phần danh sách', substitution: `${taskBatches.length} × ${compParts.length} = ${taskBatches.length * compParts.length}` });
   const linked = tasks.map((t) => { const l = linkOf.get(t.id); return l ? { output: { links: [...l.output.links].sort((a, b) => a.competency_id.localeCompare(b.competency_id)) }, source: mergeSources('E5.task_matrix', l.sources) } : { output: { links: [] }, source: 'CODE' as TraceSource }; });
   const links: Record<string, { competency_id: string; segment_ids: string[] }[]> = {};
@@ -242,7 +278,7 @@ export async function runB5(ctx: BlockCtx): Promise<BlockResult> {
   const pass = !gates.some(gateBlocks);
   const handoff = pass ? `Tập lõi ${sel.length} năng lực (giữ ${kept.length}/${scored.length}), coverage ${pct(coverage)}${uncovered.length ? `, còn hở ${uncovered.length} nhiệm vụ` : ''}.` : `Tập lõi ${core.length} năng lực ngoài giới hạn ${cmin}–${cmax} hoặc thiếu bậc: không bàn giao.`;
   tb.beat('HANDOFF', pass ? 'Bàn giao tập lõi cho B6' : 'Chặn · không bàn giao', { explanation: handoff });
-  const output = { links, long_tail: tail.map((g) => g.competency_id), selected: sel.map((g) => g.competency_id), scores: scored.map((x) => ({ competency_id: x.id, from_survey: x.from_survey, respondents: x.respondents, votes: x.votes, mean_importance: x.mean_importance, variance: x.variance, rwg: x.rwg, mean_discrimination: x.mean_discrimination, keep: x.keep, core: coreIds.has(x.id), level: x.level, S: x.S, reasons: x.reasons })), min_rwg: core.length ? Math.min(...core.map((x) => x.rwg ?? 0)) : null, unusual_agreement: unusualAgreement, coverage, numerator: num, sum_w: sumW, uncovered: uncovered.map((t) => t.id), drop_one: dropOne, levels, level_status: s.rubric.length ? 'RUBRIC' : 'UNDEFINED', ai_executed: true };
+  const output = { links, long_tail: tail.map((g) => g.competency_id), selected: sel.map((g) => g.competency_id), scores: scored.map((x) => ({ competency_id: x.id, from_survey: x.from_survey, respondents: x.respondents, votes: x.votes, mean_importance: x.mean_importance, variance: x.variance, rwg: x.rwg, mean_discrimination: x.mean_discrimination, keep: x.keep, core: coreIds.has(x.id), fill: fillIds.has(x.id), level: x.level, S: x.S, reasons: x.reasons })), min_rwg: core.length ? Math.min(...core.map((x) => x.rwg ?? 0)) : null, unusual_agreement: unusualAgreement, coverage, numerator: num, sum_w: sumW, uncovered: uncovered.map((t) => t.id), drop_one: dropOne, levels, level_status: s.rubric.length ? 'RUBRIC' : 'UNDEFINED', ai_executed: true };
   return {
     status: pass ? 'DONE' : 'BLOCKED',
     output,
@@ -467,6 +503,24 @@ export async function runB6(ctx: BlockCtx): Promise<BlockResult> {
       if (cid && l.outcome_ids.length) outcomeLinks[cid] = [...new Set([...(outcomeLinks[cid] ?? []), ...l.outcome_ids])].sort();
     }
     tb.beat('READ', 'Nối năng lực lõi với kết quả chính (E6L)', { formula: 'liên kết = liên kết của E6 ∪ liên kết của E6L — (30)', substitution: `${r.output.links.filter((l) => l.outcome_ids.length).length}/${groups.length} năng lực có kết quả`, source: r.source, explanation: 'E6 nêu kết quả khi soạn chỉ báo theo từng lô; lượt này nhìn cả khung một lần.' });
+  }
+  // Thin outcomes (21/11/2026): an outcome left with fewer than two passed competencies gets one more E6L look, on
+  // that outcome alone against every passed competency (same prompt and its "do not link only to fill" rule). Seen
+  // over the whole framework at once E6L links conservatively ("traceable requirement changes" got only "change
+  // management", not "requirement specification", on Business Analyst).
+  const thin0 = outcomeConstraint(outcomeLinks, passedC.map((g) => g.competency_id), outcomeList.map((o) => o.id)).thin;
+  if (thin0.length && passedC.length > 1) {
+    const tIds = new ShortIds();
+    const r = await ag.run('E6L', { role_title: s.session.role_title, outcomes: outcomeList.filter((o) => thin0.includes(o.id)), competencies: passedC.map((g) => ({ id: tIds.short('c', g.competency_id), label: g.label, definition: g.definition })) });
+    let added = 0;
+    for (const l of r.output.links) {
+      const cid = tIds.long(l.competency_id);
+      if (!cid) continue;
+      const before = outcomeLinks[cid] ?? [];
+      outcomeLinks[cid] = [...new Set([...before, ...l.outcome_ids])].sort();
+      added += outcomeLinks[cid].length - before.length;
+    }
+    tb.beat('READ', `Xét riêng ${thin0.length} kết quả có dưới 2 năng lực (E6L)`, { formula: 'liên kết ∪= E6L(kết quả mỏng, mọi năng lực đạt) — (30)', substitution: `${thin0.join(', ')}: thêm ${added} liên kết`, source: r.source, explanation: 'Lượt nhìn cả khung nối dè dặt; lượt này hỏi riêng từng kết quả còn mỏng: năng lực nào thật sự cần để đạt nó.' });
   }
   const oc = outcomeConstraint(outcomeLinks, passedC.map((g) => g.competency_id), outcomeList.map((o) => o.id));
   if (outcomeList.length) tb.calc({ substep: 'B6.outcomes', formula: 'mỗi năng lực lõi gắn ≥ 1 kết quả ∧ mỗi kết quả có ≥ 2 năng lực — (30)', inputs: { outcomes: outcomeList.length, links: outcomeLinks }, output: oc });

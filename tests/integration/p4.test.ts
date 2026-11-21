@@ -78,3 +78,36 @@ describe('P4 · dữ liệu từ con người', () => {
     expect((snap as any).ai_tool).toMatchObject({ id: 'anthropic-claude-cli', no_training: true });
   });
 });
+
+describe('B5 · bổ sung lõi theo độ phủ (quyết định 21/11/2026)', () => {
+  const setup = async (fill: number | undefined) => {
+    const { id } = await createSession(db, WS, { name: 'Bổ sung', role_title: 'Product Owner', purpose: 'Khung tuyển dụng', industry: 'Phần mềm', charter: { policy_id: 'sop-c', level: 'Chuyên viên', framework_type: 'ROOT', owner: 'Trưởng nhóm', decision: 'Tuyển dụng', outcomes: ['Sản phẩm ra đúng hạn', 'Giá trị kinh doanh đo được', 'Nhóm hiểu rõ ưu tiên'] } }, 'local');
+    await confirmJdSet(db, WS, id, jds(15), 'local');
+    const run = await createRun(db, WS, id, { acknowledge_send: true, cli_version: '2.1.325' }, 'local');
+    const [r] = await db.select().from(t.run).where(eq(t.run.id, run.id));
+    const snap = r.snapshot as any;
+    await db.update(t.run).set({ snapshot: { ...snap, policy: { ...POLICIES['sop-c'], core_min: 2, kappa_min_items: 5, core_fill_min_importance: fill } } }).where(eq(t.run.id, run.id));
+    process.env.FAKE_E10_IMPORTANCE = '3'; // every candidate below the keep rule (x̄ 3 < 3,5)
+    try {
+      await runThrough(db, id, 'B5');
+    } finally {
+      delete process.env.FAKE_E10_IMPORTANCE;
+    }
+    return getDetail(db, WS, id, 'B5');
+  };
+  it('không ứng viên nào đạt quy tắc giữ: ứng viên x̄ ≥ 3 phủ nhiệm vụ hở được bổ sung, ghi rõ, cổng lõi đạt', async () => {
+    const b5 = await setup(3);
+    const raw = b5.raw as any;
+    const core = raw.scores.filter((x: any) => x.core);
+    expect(core.length).toBeGreaterThanOrEqual(2);
+    expect(core.every((x: any) => x.fill && !x.keep)).toBe(true);
+    expect(raw.selected).toHaveLength(core.length);
+    expect(raw.coverage).toBeGreaterThan(0);
+    expect(b5.gates.find((g) => g.gate_id === 'B5.G1')).toMatchObject({ status: 'PASS' });
+  });
+  it('không đặt ngưỡng bổ sung: lõi rỗng, cổng lõi chặn như trước', async () => {
+    const b5 = await setup(undefined);
+    expect((b5.raw as any).scores.some((x: any) => x.core)).toBe(false);
+    expect(b5.gates.find((g) => g.gate_id === 'B5.G1')).toMatchObject({ status: 'FAIL' });
+  });
+});

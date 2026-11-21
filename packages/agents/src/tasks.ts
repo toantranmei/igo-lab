@@ -686,14 +686,15 @@ export const E8 = def({
   block: 'B7',
   // p6 (20/11/2026): variables are scored against the policy in stats (a JD-only run the policy allows is not a FAIL)
   // p7: a non-required gate that failed is a note, not a FAIL (goal_link FAIL over a B1 JD already left out of the run)
-  promptVersion: 'p7',
+  // p8 (21/11/2026): findings.item_id may name a sample sentence
+  promptVersion: 'p8',
   title: 'Thẩm định độc lập: 10 biến, nội dung từng mục, mẫu kiểm lại',
   system: `Bạn là người thẩm định độc lập. Bạn không tham gia bước nào trước; bạn chỉ đọc hồ sơ đã chốt, không sửa và không phê duyệt.
 1) items: với MỖI mục, các đoạn căn cứ có hỗ trợ nội dung (tên, định nghĩa, chỉ báo) không: SUPPORTED | PARTIAL | NOT_SUPPORTED.
 Căn cứ của chỉ báo: chỉ báo theo bậc 1, 3, 5 được soạn từ định nghĩa năng lực và đã qua dịch ngược mù của ba ghế (công thức 27); JD hiếm khi mô tả hành vi theo bậc. Vì vậy căn cứ được đánh giá ở mức năng lực (tên, định nghĩa có đoạn JD hỗ trợ). Chỉ báo không có câu JD nêu đúng hành vi đó là bình thường: không phải lý do cho NOT_SUPPORTED, và nếu ghi finding thì tối đa LOW. Vẫn ghi finding khi chỉ báo không quan sát được, lạc phạm vi của năng lực hoặc mâu thuẫn với căn cứ. HIGH chỉ khi tên hoặc định nghĩa năng lực không có căn cứ, hoặc chỉ báo trái với căn cứ.
 2) sample: với MỖI câu trong sample (câu JD đã được mã hóa vào một năng lực), mã có đúng không: code_ok "YES" | "NO".
 3) variables: chấm đúng 10 biến (mỗi biến một dòng): collection_method (phương pháp thu thập), content_type (loại nội dung), content_build (cách xây nội dung), granularity (độ chi tiết), goal_link (liên kết mục tiêu), independent_review (rà soát độc lập), prioritisation (xếp ưu tiên), reliability (độ tin cậy), keep_drop_criteria (tiêu chí giữ và loại), documentation (tài liệu hóa). result: PASS | PASS_COND | FAIL; plan: một câu kế hoạch xử lý khi PASS_COND hoặc FAIL, "" khi PASS. Dựa vào gates và stats của hồ sơ; chấm mỗi biến theo yêu cầu của policy nêu trong stats (mức chặt chẽ, phương pháp thu thập): thiếu thứ policy không đòi (ví dụ sự kiện thật khi policy cho phép khung chỉ dựa trên JD) không phải lý do cho FAIL, nhiều nhất là PASS_COND kèm kế hoạch. Cổng có required = false mà chưa đạt chỉ là ghi chú: biến liên quan nhiều nhất là PASS_COND. JD bị loại ở B1 (trùng, chưa chắc đúng vị trí, quá cũ) không thuộc căn cứ của khung; việc loại chúng không làm giảm liên kết mục tiêu hay độ tin cậy. Hồ sơ lớn được chia nhiều lời gọi: items của một lời gọi chỉ là một phần hồ sơ; lời gọi có gates rỗng là lô phụ, chỉ duyệt items (variables = [], sample = []). Câu sample chỉ cần đối chiếu với tên năng lực ghi ở code; năng lực đó có thể nằm ở lô khác, không có trong items, và đó không phải lỗi.
-4) findings có căn cứ (có thể rỗng): severity LOW | MEDIUM | HIGH | CRITICAL (CRITICAL chỉ khi nội dung sẽ ghi vào từ điển mà không có căn cứ, hoặc dữ liệu có dấu hiệu bị thao túng); type UNSUPPORTED_CONTENT | DUPLICATE_CONCEPT | SCOPE_DRIFT | INDICATOR_NOT_OBSERVABLE | EVIDENCE_GAP | PROCESS_ORDER | OTHER; item_id ("" nếu chung); expected, observed: mỗi trường một câu.
+4) findings có căn cứ (có thể rỗng): severity LOW | MEDIUM | HIGH | CRITICAL (CRITICAL chỉ khi nội dung sẽ ghi vào từ điển mà không có căn cứ, hoặc dữ liệu có dấu hiệu bị thao túng); type UNSUPPORTED_CONTENT | DUPLICATE_CONCEPT | SCOPE_DRIFT | INDICATOR_NOT_OBSERVABLE | EVIDENCE_GAP | PROCESS_ORDER | OTHER; item_id (mã mục trong items, hoặc mã câu trong sample khi phát hiện về câu mẫu; "" nếu chung); expected, observed: mỗi trường một câu.
 5) conclusion_code: CLEAR | CLEAR_WITH_NOTES | NOT_CLEAR. unchecked_scope: một câu nêu phạm vi không kiểm được.`,
   input: z.strictObject({
     role_title: z.string(),
@@ -726,7 +727,8 @@ Căn cứ của chỉ báo: chỉ báo theo bậc 1, 3, 5 được soạn từ �
     return [
       ...badRefs('items.item_id', o.items.map((x) => x.item_id), set),
       ...ids.filter((id) => o.items.filter((x) => x.item_id === id).length !== 1).map((id) => `Thiếu hoặc trùng đánh giá cho mục "${id}"`),
-      ...badRefs('findings.item_id', o.findings.map((f) => f.item_id).filter(Boolean), set),
+      // a finding may be about a re-check sentence (sample id) as well as an item (Data Engineer B7, 21/11/2026)
+      ...badRefs('findings.item_id', o.findings.map((f) => f.item_id).filter(Boolean), new Set([...ids, ...sids])),
       ...badRefs('sample.id', o.sample.map((x) => x.id), new Set(sids)),
       ...sids.filter((id) => o.sample.filter((x) => x.id === id).length !== 1).map((id) => `Thiếu hoặc trùng kết luận cho câu mẫu "${id}"`),
       // only the main call (with gates) scores the ten variables; a side batch reviews items only
@@ -851,7 +853,9 @@ export const E10 = def({
   // p2 (19/11/2026): the seat whose scale_note spoke of frequency left discrimination blank for every candidate
   // (13/13 on production), so (21) ran on two votes; scale_note now only frames importance.
   // p3 (20/11/2026): each candidate carries how many of the role's valid JDs name it (x/N), evidence for importance
-  promptVersion: 'p3',
+  // p4 (21/11/2026): the seats get the role's purpose and outcomes (charter), as a manager or survey respondent knows
+  // them: without them the "consequence if lacking" seat scored 3 on most candidates of five roles (core < 6 at B5)
+  promptVersion: 'p4',
   title: 'Chấm quan trọng, phân biệt và bậc (một ghế)',
   system: `Bạn là MỘT người chấm độc lập, đóng vai nêu trong seat_role. Với MỖI ứng viên trả về đúng một dòng gồm ba điểm nguyên 1–5 dạng chuỗi:
 - importance: mức quan trọng với vị trí, chấm theo góc nhìn và thang trong scale_note của ghế bạn;
@@ -859,8 +863,9 @@ export const E10 = def({
 - level: bậc yêu cầu với vị trí (theo rubric trong scale_note nếu có).
 Chỉ để "" khi tên, định nghĩa và đoạn căn cứ của chính ứng viên đó không đủ để chấm khía cạnh ấy; vai trò hay thang của ghế không phải lý do để bỏ trống.
 jd_share là số JD hợp lệ của vị trí có nêu năng lực này (x/N): một căn cứ về mức quan trọng, không phải căn cứ duy nhất; năng lực ít JD nêu vẫn có thể quan trọng.
-Chỉ dựa trên tên, định nghĩa, jd_share và các đoạn căn cứ; không mặc định chọn điểm giữa.`,
-  input: z.strictObject({ seat: z.string(), seat_role: z.string(), scale_note: z.string(), role_title: z.string(), candidates: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), jd_share: z.string(), segments: z.array(Seg) })) }),
+purpose và outcomes (nếu có) là mục đích và các kết quả chính vị trí phải tạo ra: chấm importance theo mức năng lực đó cần để tạo ra các kết quả này.
+Chỉ dựa trên tên, định nghĩa, jd_share, các đoạn căn cứ, purpose và outcomes; không mặc định chọn điểm giữa.`,
+  input: z.strictObject({ seat: z.string(), seat_role: z.string(), scale_note: z.string(), role_title: z.string(), purpose: z.string().optional(), outcomes: z.array(z.string()).optional(), candidates: z.array(z.strictObject({ id: z.string(), label: z.string(), definition: z.string(), jd_share: z.string(), segments: z.array(Seg) })) }),
   output: z.strictObject({ scores: z.array(z.strictObject({ candidate_id: z.string(), importance: Score, discrimination: Score, level: Score })) }),
   check: (i, o) => {
     const ids = i.candidates.map((c) => c.id);

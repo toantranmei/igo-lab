@@ -127,6 +127,22 @@ describe('bất thường, ngân sách, giờ của bước', () => {
     expect((st.find((a) => a.current)!.options as any).accept_over).toMatchObject({ budget: true, run: false });
   });
 
+  it('chấp nhận vượt lần hai trong cùng bước giữ mục đã chấp nhận lần trước (không lặp giữa hai giới hạn)', async () => {
+    const { sessionId, runId } = await newSession(db, [doc('A', JD_A), doc('B', JD_B)]);
+    const [run] = await db.select().from(t.run).where(eq(t.run.id, runId));
+    const snap = run.snapshot as any;
+    await db.update(t.run).set({ snapshot: { ...snap, budget: { ...snap.budget, block_tokens: { ...snap.budget.block_tokens, B1: 1500 } } } }).where(eq(t.run.id, runId));
+    await setAuto(db, WS, sessionId, true, 'local');
+    await drain();
+    await resumeRun(db, WS, sessionId, { actor: 'reviewer', acceptOver: true });
+    // the accepted attempt now stops on the other limit (the call count)
+    const cur = async () => (await db.select().from(t.blockAttempt).where(and(eq(t.blockAttempt.runId, runId), eq(t.blockAttempt.block, 'B1')))).find((a) => a.current)!;
+    await db.update(t.blockAttempt).set({ status: 'FAILED', error: { code: 'ANOMALY_CALLS' } }).where(eq(t.blockAttempt.id, (await cur()).id));
+    await db.delete(t.job).where(eq(t.job.attemptId, (await cur()).id));
+    await resumeRun(db, WS, sessionId, { actor: 'reviewer', acceptOver: true });
+    expect(((await cur()).options as any).accept_over).toMatchObject({ budget: true, calls: true, run: false });
+  });
+
   it('BLOCK_STARTED / BLOCK_DONE có giờ thật; finished_at lấy lúc xong; ngân sách nằm trong snapshot', async () => {
     const { sessionId, runId } = await newSession(db, [doc('A', JD_A), doc('B', JD_B)]);
     const [run] = await db.select().from(t.run).where(eq(t.run.id, runId));

@@ -308,7 +308,10 @@ export async function resumeRun(db: Db, workspaceId: string, sessionId: string, 
   // a stop on budget or anomaly is never lifted by a plain resume (or a scheduled one): only by "accept over"
   if (!opts.acceptOver && /^(BUDGET_|ANOMALY_)/.test(cause)) throw new AppError('ACCEPT_OVER_REQUIRED', 'Lượt dừng vì ngân sách hoặc bất thường: cần "Chạy tiếp, chấp nhận vượt" có người xác nhận.', 409, { cause }, ['ACCEPT_OVER']);
   if (opts.acceptOver) {
-    accept = { input: cause === 'ANOMALY_INPUT', calls: cause === 'ANOMALY_CALLS', budget: cause === 'BUDGET_BLOCK', run: cause === 'BUDGET_RUN', run_calls: cause === 'BUDGET_EXCEEDED', by: opts.actor, at: new Date().toISOString() };
+    // what was accepted on the stopped attempt of this block stays accepted: otherwise a block over two limits
+    // (calls and tokens) stops on the other one at every accept, endlessly (Data Engineer B6, 21/11/2026)
+    const prev = ((failed ? (cur.get(failed)!.options as any)?.accept_over : null) ?? {}) as AcceptOver;
+    accept = { input: cause === 'ANOMALY_INPUT' || !!prev.input, calls: cause === 'ANOMALY_CALLS' || !!prev.calls, budget: cause === 'BUDGET_BLOCK' || !!prev.budget, run: cause === 'BUDGET_RUN' || !!prev.run, run_calls: cause === 'BUDGET_EXCEEDED' || !!prev.run_calls, by: opts.actor, at: new Date().toISOString() };
     if (!accept.input && !accept.calls && !accept.budget && !accept.run && !accept.run_calls) throw new AppError('NOTHING_TO_ACCEPT', 'Lượt không dừng vì ngân sách hay bất thường nên không có gì để chấp nhận vượt.', 409);
     await appendEvent(db, { workspaceId, type: 'OVER_ACCEPTED', actor: opts.actor, sessionId, runId: run.id, block: failed ?? stop?.block ?? null, payload: { cause, accept, stop } });
   }

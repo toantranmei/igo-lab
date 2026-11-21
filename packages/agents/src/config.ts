@@ -51,11 +51,16 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
     E1: H, E23: H, E4: H, E4M: S, E4S: S, E5: H, E6L: S, E6: S, E7: H, E8: { model: MODELS.opus, effort: 'low' }, E9: S, E10: H,
   },
   seats: [
-    { seat: 'seat-1', ...H, role: 'Quản lý trực tiếp của vị trí', scale: '1–5 theo hậu quả nếu người giữ vị trí thiếu năng lực này: 1 không đáng kể … 5 công việc thất bại.' },
-    { seat: 'seat-2', ...H, role: 'Chuyên gia nghề, đọc từ các nghề chuẩn ngoài', scale: '1–5 theo tần suất cần dùng trong công việc: 1 hiếm khi … 5 hằng ngày.' },
-    { seat: 'seat-3', ...H, role: 'Người đánh giá năng lực, tập trung vào hành vi quan sát được', scale: '1–5 theo mức khác biệt giữa người giỏi và người trung bình: 1 không khác … 5 khác biệt rõ rệt.' },
+    { seat: 'seat-1', ...H, role: 'Quản lý trực tiếp của vị trí', scale: '1–5 theo hậu quả nếu người giữ vị trí thiếu năng lực này: 1 không đáng kể; 2 ảnh hưởng nhỏ, người khác dễ bù; 3 một phần công việc chậm hoặc kém chất lượng; 4 ít nhất một kết quả chính của vị trí không đạt; 5 công việc của vị trí thất bại.' },
+    { seat: 'seat-2', ...H, role: 'Chuyên gia nghề, đọc từ các nghề chuẩn ngoài', scale: '1–5 theo vị trí của năng lực này trong các chuẩn nghề ngoài (O*NET, ESCO, SFIA) cho nghề này: 1 không có; 2 ngoại vi, hiếm khi được nêu; 3 có nêu nhưng là phần phụ; 4 là năng lực quan trọng của nghề; 5 là năng lực cốt lõi định nghĩa nghề.' },
+    { seat: 'seat-3', ...H, role: 'Người đánh giá năng lực, tập trung vào hành vi quan sát được', scale: '1–5 theo mức khác biệt giữa người giỏi và người trung bình: 1 không khác; 2 khác ít, khó nhận ra; 3 khác ở một số tình huống; 4 khác rõ ở phần lớn công việc; 5 khác biệt rõ rệt, quyết định hiệu quả của vị trí.' },
   ],
 };
+// Scale anchors (21/11/2026): the seats had words for 1 and 5 only; on five real roles the Sonnet seats put most
+// candidates at 3 (core < 6 at B5). Every point of each scale now has its own wording, as in a survey form.
+// Seat 2 scored frequency of use, which is not importance: a quarterly but critical task (penetration testing) got 3
+// against 5 and 5, and r_wg dropped it. Its scale now reads importance from the external occupation standards, as
+// its role says; the three seats still differ in viewpoint (consequence, standards, observed behaviour).
 
 /**
  * Configuration for a session's rigor. Levels A and B keep the default (E8 on Opus so the "Sản phẩm thị trường" tier
