@@ -613,6 +613,7 @@ export async function getState(db: Db, workspaceId: string, sessionId: string): 
     sessionId,
     sessionName: session.name,
     roleTitle: session.roleTitle,
+    roleId: session.roleId,
     runNo: run?.runNo ?? 0,
     runLabel: run ? `Lượt ${String(run.runNo).padStart(2, '0')}` : 'Chưa có lượt',
     inputSummary: `${docs.length} JD · ${tasks.length} nhiệm vụ · ${inputEvents.length} sự kiện`,

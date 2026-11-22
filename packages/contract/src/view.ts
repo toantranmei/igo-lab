@@ -246,6 +246,8 @@ export interface SessionState {
   sessionId: string;
   sessionName: string;
   roleTitle: string;
+  /** Live: the session's role id; its frameworks are the dictionary R records `R-<roleId>`. */
+  roleId?: string;
   runNo: number;
   runLabel: string;
   inputSummary: string;

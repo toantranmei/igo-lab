@@ -227,7 +227,11 @@ export default function FrameworkScreen() {
   const [mode, setMode] = useState<Mode>('map');
   const [version, setVersion] = useState('');
 
-  const published = state?.dictionary.R ?? [];
+  // The dictionary holds every role's frameworks; a live session shows and exports only its own role's (R-<roleId>).
+  // Showing the last framework of the whole dictionary exported another role's version label → 404 (22/11/2026).
+  const roleId = state?.roleId;
+  const allPublished = state?.dictionary.R;
+  const published = useMemo(() => (roleId ? (allPublished ?? []).filter((f) => f.id === `R-${roleId}`) : allPublished ?? []), [allPublished, roleId]);
   const trial = state?.trial ?? null;
   const usingTrial = published.length === 0 && !!trial;
   const frames = useMemo<DictFrame[]>(() => (published.length ? published : trial ? [{ ...trial, trial: true }] : []), [published, trial]);
